@@ -1,8 +1,10 @@
-# rtfsc
-read the forking source code
+# RTFSC
 
+Read The Forking Source Code
 
-freebsd的kernel构成文件在/usr/src/sys的目录下面。
+# FreeBSD
+
+FreeBSD的kernel构成文件在/usr/src/sys的目录下面。
 
 ```
 /usr/src/sys
