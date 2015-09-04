@@ -4,6 +4,7 @@ read the forking source code
 
 freebsd的kernel构成文件在/usr/src/sys的目录下面。
 
+```
 /usr/src/sys
   |
   | --   compile     //编译核心的目录。
@@ -39,3 +40,4 @@ freebsd的kernel构成文件在/usr/src/sys的目录下面。
   | --   sys      //独立于机器体系结构的一部分code
   | --   ufs      //unix file system 的支持code
   | --   vm       //虚拟内存管理的部分
+```
