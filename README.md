@@ -6,7 +6,7 @@ Read The Forking Source Code
 
 ## Env setup
 
-1. Enable su
+### Setup su
 
 	pw groupmod wheel -m <username>
 
@@ -18,11 +18,11 @@ or edit /etc/group
 
 	wheel:*:0:root,username
 
-## Setup git
+### Setup git
 
 	pkg install git-lite
 
-## Setup vim
+### Setup vim
 
 	pkg install vim-lite
 
