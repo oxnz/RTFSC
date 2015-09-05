@@ -4,6 +4,32 @@ Read The Forking Source Code
 
 # FreeBSD
 
+## Env setup
+
+1. Enable su
+
+	pw groupmod wheel -m <username>
+
+or
+
+	pw user mod <username> -g wheel
+
+or edit /etc/group
+
+	wheel:*:0:root,username
+
+## Setup git
+
+	pkg install git-lite
+
+## Setup vim
+
+	pkg install vim-lite
+
+## Hier
+
+	man hier
+
 FreeBSD的kernel构成文件在/usr/src/sys的目录下面。
 
 ```
