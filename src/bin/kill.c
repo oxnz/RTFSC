@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	return ret;
+	exit(ret);
 }
 
 static int signame_to_signo(const char *name) {

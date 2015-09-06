@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
 	else
 		head_lines(stdin, lines);
 
-	return 0;
+	exit(0);
 }
 
 static void head_bytes(FILE *fp, size_t n) {
