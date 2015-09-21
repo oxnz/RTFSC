@@ -12,12 +12,13 @@
 
 int main(int argc, char *argv[]) {
 	struct sockaddr_in srv_addr, cli_addr;
-	int sockfd, clifd, n, len;
+	int sockfd, clifd, n;
+	socklen_t len = sizeof(cli_addr);
 	const char *prompt = "msg: ";
 	char req[REQMAXLEN], rsp[RSPMAXLEN];
 	char *pbuf = req;
 
-	if ((sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+	if ((sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_IP)) < 0)
 		err(1, "socket");
 	memset(&srv_addr, 0, sizeof(srv_addr));
 	srv_addr.sin_family = AF_INET;
@@ -29,7 +30,6 @@ int main(int argc, char *argv[]) {
 		err(1, "listen");
 
 	for (;;) {
-		len = sizeof(cli_addr);
 		if ((clifd = accept(sockfd, (SA) &cli_addr, &len)) < 0)
 			err(1, "accept");
 		while ((n = read(clifd, pbuf, REQMAXLEN-(pbuf - req))) > 0) {
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 		printf("%s", prompt);
 		if ((n = read(1, rsp, RSPMAXLEN)) < 0)
 			err(1, "read");
-		if (send(sockfd, rsp, n, MSG_EOF) != n)
+		if (send(clifd, rsp, n, MSG_EOF) != n)
 			err(1, "sendto");
 		close(clifd);
 	}
