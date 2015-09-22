@@ -1,4 +1,6 @@
+#include <sys/types.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
 #include <err.h>
@@ -21,11 +23,11 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in srv_addr;
 	char req[REQMAXLEN], rsp[RSPMAXLEN];
 	const char *prompt = "msg: ";
-	char *pbuf = req;
+	char *pbuf = rsp;
 
 	if (argc != 2)
 		usage();
-	if ((sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+	if ((sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_IP)) < 0)
 		err(1, "tcpcli");
 	memset(&srv_addr, 0, sizeof(srv_addr));
 	srv_addr.sin_family = AF_INET;
@@ -35,9 +37,11 @@ int main(int argc, char *argv[]) {
 	write(1, prompt, strlen(prompt));
 	if ((n = read(1, req, REQMAXLEN)) < 0)
 		err(1, "read");
+
 	if (sendto(sockfd, req, n, MSG_EOF,
 				(SA) &srv_addr, sizeof(srv_addr)) != n)
 		err(1, "sendto");
+
 	while ((n = read(sockfd, pbuf, RSPMAXLEN - (pbuf - rsp))) > 0) {
 		pbuf += n;
 	}
