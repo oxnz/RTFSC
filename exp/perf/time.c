@@ -6,13 +6,6 @@
 #include <sys/wait.h>
 #include <sys/resource.h>
 
-void prusage(struct rusage *ru) {
-	printf("real %f\nuser %f\nsys %f\n",
-			ru->ru_utime.tv_sec + ru->ru_utime.tv_usec / 1000000.0,
-			ru->ru_stime.tv_sec + ru->ru_stime.tv_usec / 1000000.0,
-			ru->ru_stime.tv_sec + ru->ru_stime.tv_usec / 1000000.0);
-}
-
 //	printf("%Uuser %Ssystem %Eelapsed %PCPU (%Xtext+%Ddata %Mmax)k\n%Iinputs+%Ooutputs (%Fmajor+%Rminor)pagefaults %Wswaps",
 		//struct rusage {
 		//	struct timeval ru_utime; /* user CPU time used */
@@ -32,16 +25,21 @@ void prusage(struct rusage *ru) {
 		//	long   ru_nvcsw;         /* voluntary context switches */
 		//	long   ru_nivcsw;        /* involuntary context switches */
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[])
+{
 	int pflag;
 	pid_t pid;
 	int status;
 	struct rusage ru;
+	struct timeval t0, t1;
 
 	if (strcmp("-p", argv[1]) == 0) {
 		++argv;
 		pflag = 1;
 	}
+	if (-1 == gettimeofday(&t0, NULL))
+		err(1, "gettimeofday");
 	if ((pid = fork()) == -1) {
 		perror("fork");
 		exit(1);
@@ -56,7 +54,12 @@ int main(int argc, char *argv[]) {
 			perror("wait4");
 			exit(1);
 		}
-		prusage(&ru);
+		if (-1 == gettimeofday(&t1, NULL))
+			err(1, "gettimeofday");
+		printf("real %f\nuser %f\nsys %f\n",
+				t1.tv_sec - t0.tv_sec + (t1.tv_usec - t0.tv_usec) / 1000000.0,
+				ru.ru_stime.tv_sec + ru.ru_stime.tv_usec / 1000000.0,
+				ru.ru_stime.tv_sec + ru.ru_stime.tv_usec / 1000000.0);
 	}
 
 	exit(0);
