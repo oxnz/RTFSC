@@ -131,7 +131,7 @@ static int process(uint8_t *req, int len, uint8_t *rsp) {
 	p += 4;
 	*(uint16_t *)p = htons(4);
 	p += 2;
-	*(uint32_t *)p = htonl(123);
+	*(uint32_t *)p = htonl(1234567);
 	p += 4;
 	return p - rsp;
 }
@@ -169,11 +169,13 @@ int main(int argc, char *argv[]) {
 	if (bind(sockfd, (SA) &server, sizeof(server)) < 0)
 		err(1, "bind");
 
+	printf("server started on port: 8000\n");
+
 	for (;;) {
 		if ((n = recvfrom(sockfd, req, REQMAXLEN, 0, (SA) &client, &len)) < 0) {
 			err(1, "recvfrom");
 		}
-		printf("request from [%s:%d]:\n", inet_ntoa(* ((struct in_addr *) &client.sin_addr.s_addr)), ntohs(client.sin_port));
+		printf("request from [%s:%d]:\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 		phex(req, n);
 		n = process(req, n, rsp);
 		phex(rsp, n);

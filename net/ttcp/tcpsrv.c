@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
 			err(1, "accept");
 		if ((n = read(sockfd, req, REQMAXLEN)) < 0)
 			err(1, "read");
-		printf("[%s:%u]: %s", inet_ntoa(*((struct in_addr *)&cli_addr.sin_addr.s_addr)), ntohs(cli_addr.sin_port), req);
+		printf("[%s:%u]: %s", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port), req);
 		write(1, prompt, strlen(prompt));
 		if ((n = read(1, rsp, RSPMAXLEN)) < 0)
 			err(1, "read");
