@@ -26,13 +26,17 @@ int main(int argc, char *argv[]) {
 	memset(&srv_addr, 0, sizeof(srv_addr));
 	srv_addr.sin_family = AF_INET;
 	srv_addr.sin_port = htons(TCP_SERVICE_PORT);
-	srv_addr.sin_addr.s_addr = inet_addr(argv[1]);
+	if (inet_pton(AF_INET, argv[1], &srv_addr.sin_addr.s_addr) <= 0)
+		err(1, "inet_pton");
+	printf("connecting to addr: [%s:%d]\n", inet_ntoa(srv_addr.sin_addr),
+			TCP_SERVICE_PORT);
 
+	if (connect(sockfd, (SA) &srv_addr, sizeof(srv_addr)) == -1)
+		err(1, "connect");
+	printf("connected\n");
 	write(1, prompt, strlen(prompt));
 	if ((n = read(1, req, REQMAXLEN)) < 0)
 		err(1, "read");
-	if (connect(sockfd, (SA) &srv_addr, sizeof(srv_addr)) == -1)
-		err(1, "connect");
 	if (write(sockfd, req, n) != n)
 		err(1, "write");
 	if ((n = read(sockfd, rsp, RSPMAXLEN)) < 0)

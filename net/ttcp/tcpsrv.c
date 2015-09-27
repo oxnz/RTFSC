@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
 	int listenfd, sockfd, n, len;
 	const char *prompt = "msg: ";
 	char req[REQMAXLEN], rsp[RSPMAXLEN];
+	char addr[INET_ADDRSTRLEN];
 
 	if ((listenfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
 		err(1, "socket");
@@ -27,14 +28,23 @@ int main(int argc, char *argv[]) {
 		err(1, "bind");
 	if (listen(listenfd, SOMAXCONN) < 0)
 		err(1, "listen");
+	if (inet_ntop(AF_INET, &srv_addr.sin_addr, addr, INET_ADDRSTRLEN)
+			== NULL)
+		err(1, "inet_ntop");
+	printf("listening on addr: [%s:%d]\n", addr, TCP_SERVICE_PORT);
 
 	for (;;) {
 		len = sizeof(cli_addr);
 		if ((sockfd = accept(listenfd, (SA) &cli_addr, &len)) < 0)
 			err(1, "accept");
+		if (inet_ntop(AF_INET, &cli_addr.sin_addr, addr,
+					INET_ADDRSTRLEN) == NULL)
+			err(1, "inet_ntop");
+		printf("client connected: [%s:%u]\n", addr,
+				ntohs(cli_addr.sin_port));
 		if ((n = read(sockfd, req, REQMAXLEN)) < 0)
 			err(1, "read");
-		printf("[%s:%u]: %s", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port), req);
+		printf("[%s:%u]: %s", addr, ntohs(cli_addr.sin_port), req);
 		write(1, prompt, strlen(prompt));
 		if ((n = read(1, rsp, RSPMAXLEN)) < 0)
 			err(1, "read");
