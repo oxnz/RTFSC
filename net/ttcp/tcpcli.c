@@ -52,6 +52,6 @@ int main(int argc, char *argv[]) {
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: tcpcli <ip>");
+	fprintf(stderr, "usage: tcpcli <ip>\n");
 	exit(1);
 }
