@@ -1,5 +1,12 @@
-CC	:= clang
+ifeq ($(uname -s),FreeBSD)
+	CC	:= clang
+else
+	CC	:= gcc
+endif
 CFLAGS	:= -g
-LDFLAGS	:= -lpthread
+LDFLAGS	:= -pthread
 
-all: status
+all: status clone
+
+clone: clone.c
+	cc $< -o $@
