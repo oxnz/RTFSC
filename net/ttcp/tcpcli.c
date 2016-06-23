@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
 	if (connect(sockfd, (SA) &srv_addr, sizeof(srv_addr)) == -1)
 		err(1, "connect");
 	printf("connected\n");
+	/*
 	write(1, prompt, strlen(prompt));
 	if ((n = read(1, req, REQMAXLEN)) < 0)
 		err(1, "read");
@@ -45,6 +46,13 @@ int main(int argc, char *argv[]) {
 	if (n > 0 && rsp[n-1] == '\n')
 		rsp[n-1] = '\0';
 	printf("response(%d): [%s]\n", n, rsp);
+	*/
+	if (dup2(sockfd, STDIN_FILENO) == -1)
+		err(1, "dup2");
+	if (dup2(sockfd, STDOUT_FILENO) == -1)
+		err(1, "dup2");
+	if (dup2(sockfd, STDERR_FILENO) == -1)
+		err(1, "dup2");
 
 	exit(0);
 }
