@@ -10,15 +10,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <sys/stat.h>
+#include <errno.h>
+
 #include <pthread.h>
 
 #define REQMAXLEN 512
 #define RSPMAXLEN 512
 #define TCP_SERVICE_PORT 8000
-#define THREAD_CNT 5
-
-char buf[10240];
-size_t bufl;
+#define THREAD_CNT 8
 
 typedef struct sockaddr * SA;
 
@@ -27,6 +27,46 @@ struct taskinfo {
 	pthread_t tid;
 	int listenfd;
 };
+
+int service_sendfile(int sockfd, const char *path) {
+	char req[REQMAXLEN], rsp[RSPMAXLEN];
+	if (-1 == fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK))
+		err(1, "fcntl");
+	int fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		if (errno == ENFILE) {
+			usleep(10000);
+			printf("short of nofile, sleep 10ms\n");
+			return service_sendfile(sockfd, path);
+		}
+		warn("open");
+		close(sockfd);
+		return -1;
+	}
+	struct stat st;
+	if (fstat(fd, &st) < 0) {
+		warn("fstat");
+		close(fd);
+		close(sockfd);
+		return -1;
+	}
+	size_t sz = snprintf(rsp, RSPMAXLEN,
+			"HTTP/1.1 200 OK\r\n"
+			"Content-Type: text/html; charset=utf-8\r\n"
+			"Content-Length: %llu\r\n"
+			"Cache-Control: private, max-age=0, proxy-revalidate, no-store, no-cache, must-revalidate\r\n"
+			"Server: mhttpd/0.1\r\n"
+			"\r\n",
+			st.st_size
+			);
+	if (write(sockfd, rsp, sz) != sz)
+		warn("write");
+	sz = sendfile(sockfd, fd, NULL, st.st_size);
+	if (sz < 0)
+		warn("sendfile");
+	close(fd);
+	close(sockfd);
+}
 
 void* service(void *arg) {
 	struct taskinfo *ti = arg;
@@ -55,15 +95,12 @@ void* service(void *arg) {
 			err(1, "inet_ntop");
 		if ((n = read(sockfd, req, REQMAXLEN)) < 0)
 			err(1, "read");
+		printf("req:[%s]\n", req);
 		//printf("[%s] [%s:%u] requested\n", name, addr, ntohs(cli_addr.sin_port));
 		//printf("[%s] [%s:%u] requested\n%s", name, addr, ntohs(cli_addr.sin_port), req);
 		n = snprintf(rsp, REQMAXLEN, "[%s] served\n", name);
-		if (-1 == fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK))
-			err(1, "fcntl");
-		//if (write(sockfd, rsp, n) != n)
-		if (write(sockfd, buf, bufl) != bufl)
-			err(1, "write");
-		close(sockfd);
+		const char *path = "./index.html";
+		service_sendfile(sockfd, path);
 	}
 }
 
@@ -105,19 +142,6 @@ int main(int argc, char *argv[]) {
 			== NULL)
 		err(1, "inet_ntop");
 	printf("[%d] listening on addr: [%s:%d]\n", getpid(), addr, TCP_SERVICE_PORT);
-
-	{ // setup index.html
-		int fd = open("./index.html", O_RDONLY);
-		if (fd < 0) {
-			warn("open");
-			snprintf(buf, 10, "MESSAGE\n");
-			bufl = strlen(buf);
-		} else {
-			if ((bufl = read(fd, buf, 10240)) <= 0)
-				err(1, "read");
-			close(fd);
-		}
-	}
 
 	pid_t pid = getpid();
 	int i;
