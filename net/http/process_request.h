@@ -61,6 +61,8 @@ struct request {
 	enum method method;
 	char *uri;
 	struct response resp;
+	int readable;
+	int writable;
 };
 
 void* accept_request(struct server *server);

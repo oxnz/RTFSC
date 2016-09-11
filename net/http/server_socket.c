@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "server_socket.h"
 
 int server_socket_init(struct server_socket *skt) {

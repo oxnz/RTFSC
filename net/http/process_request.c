@@ -6,6 +6,8 @@
 
 #include <unistd.h>
 
+#include <err.h>
+
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -83,7 +85,7 @@ void* accept_request(struct server *server) {
 					close(sockfd);
 					continue;
 				}
-				if (0) { // set cork
+				if (1) { // set nodelay
 					if (setsockopt(sockfd, SOL_TCP, TCP_NODELAY, &optval, sizeof(optval))) {
 						perror("setsockopt");
 					}
@@ -107,17 +109,31 @@ void* accept_request(struct server *server) {
 }
 
 ssize_t read_request(struct request *req) {
+	ssize_t n;
+	ssize_t sum = -1;
 	if (req->offset == REQMAXLEN) {
 		warn("request too large");
 		req->state = CONN_ABORTED;
 		return -1;
 	}
-	ssize_t n = read(req->sockfd, req->raw + req->offset, REQMAXLEN - req->offset);
-	if (n < 0) {
-		perror("read");
-		req->state = CONN_ABORTED;
-		return -1;
-	}
+	do {
+		n = read(req->sockfd, req->raw + req->offset, REQMAXLEN - req->offset);
+		if (n >= 0) {
+			if (sum == -1)
+				sum = n;
+			else
+				sum += n;
+			req->offset += n;
+			req->readable = (n != 0);
+		} else {
+			req->readable = 0;
+			if (errno != EAGAIN) {
+				perror("read");
+				req->state = CONN_ABORTED;
+				return -1;
+			}
+		}
+	} while (req->readable);
 	if (req->state == CONN_ESTABLISHED) {
 		char *p = strstr(req->raw, "\n\r\n");
 		if (p) { // parse header
@@ -143,114 +159,189 @@ ssize_t read_request(struct request *req) {
 			}
 		}
 	}
-	return n;
+	return sum >= 0 ? sum : -1;
 }
 
 ssize_t send_header(struct request *req) {
 	struct response *resp = &req->resp;
-	ssize_t n = write(req->sockfd, resp->header + resp->header_offset,
-			resp->header_length);
-	//printf("[%llx] send header %d/%d bytes\n", pthread_self(), n, resp->header_length);
-	if (n > 0) {
-		resp->header_offset += n;
-		resp->header_length -= n;
-		if (resp->header_length == 0)
-			if (resp->body_length == 0)
-				req->state = RESP_SENT;
+	ssize_t n, sum = -1;
+
+	do {
+		n = write(req->sockfd, resp->header + resp->header_offset,
+				resp->header_length);
+		//printf("[%llx] send header %d/%d bytes\n", pthread_self(), n, resp->header_length);
+		if (n >= 0) {
+			if (sum == -1)
+				sum = n;
 			else
-				req->state = SENDING_RESP_BODY;
-	}
-	return n;
+				sum += n;
+			req->writable = (n != 0);
+			resp->header_offset += n;
+			resp->header_length -= n;
+			if (resp->header_length == 0) {
+				if (resp->body_length == 0)
+					req->state = RESP_SENT;
+				else
+					req->state = SENDING_RESP_BODY;
+				break;
+			}
+		} else {
+			req->writable = 0;
+			if (errno != EAGAIN) {
+				perror("write");
+				return -1;
+			}
+		}
+	} while (req->writable);
+	return sum >= 0 ? sum : -1;
 }
 
 ssize_t send_body(struct request *req) {
 	struct response *resp = &req->resp;
-	ssize_t n = sendfile(req->sockfd, resp->fd, &resp->body_offset, resp->body_length);
-	if (n < 0) {
-		perror("sendfile");
-		close(resp->fd);
-		req->state = RESP_SENT;
-	} else {
-		resp->body_offset += n;
-		resp->body_length -= n;
-		if (resp->body_length == 0) {
-			close(resp->fd);
-			req->state = RESP_SENT;
+	ssize_t n, sum = -1;
+
+	do {
+		n = sendfile(req->sockfd, resp->fd, &resp->body_offset, resp->body_length);
+		if (n >= 0) {
+			if (sum == -1)
+				sum = n;
+			else
+				sum += n;
+			req->writable = (n != 0);
+			resp->body_length -= n;
+			if (resp->body_length == 0) {
+				close(resp->fd);
+				req->state = RESP_SENT;
+				break;
+			}
+		} else {
+			req->writable = 0;
+			if (errno != EAGAIN) {
+				perror("sendfile");
+				close(resp->fd);
+				req->state = CONN_ABORTED;
+			}
 		}
-	}
-	if (n == 0)
-		perror("sendfile");
-	//printf("[%llx] send body %d/%d/%d\n", pthread_self(), n, resp->body_offset, resp->body_length);
-	return n;
+	} while (req->writable);
+	//printf("[%llx] send body %d sent/%d offset/%d remains\n", pthread_self(), n, resp->body_offset, resp->body_length);
+	return sum >= 0 ? sum : -1;
 }
 
+int build_resp(struct request* req) {
+	struct response *resp = &req->resp;
+	resp->header_offset = 0;
+	char *fpath;
+	if (strcmp("/", req->uri) == 0)
+		fpath = "index.html";
+	else if (strlen(req->uri) > 0 && req->uri[0] == '/') {
+		fpath = req->uri + 1;
+	} else
+		fpath = "404.html";
+	resp->fd = open(fpath, O_RDONLY | O_NONBLOCK);
+	resp->content_type = "text/html";
+	resp->charset = "utf-8";
+	if (req->resp.fd != -1) {
+		resp->code = 200;
+		resp->reason = "OK";
+		struct stat st;
+		if (fstat(resp->fd, &st) < 0) {
+			warn("fstat");
+			resp->code = 500;
+			resp->reason = "Internal Error";
+			close(resp->fd);
+		}
+		resp->body_offset = 0;
+		resp->body_length = st.st_size;
+	} else {
+		if (errno == EACCES) {
+			resp->code = 403;
+			resp->reason = "Forbidden";
+		} else if (errno == EEXIST) {
+			resp->code = 404;
+			resp->reason = "Not Found";
+		} else {
+			resp->code = 500;
+			resp->reason = "Internal Server Error";
+		}
+	}
+	if (resp->code != 200)
+		resp->body_length = 0;
+	int n = sprintf(resp->header, "HTTP/1.1 %d %s\r\n",
+			resp->code, resp->reason);
+	n += sprintf(resp->header + n, "Server: mhttpd/0.1\r\n");
+	n += sprintf(resp->header + n, "Content-Type: %s; charset=%s\r\n",
+			resp->content_type, resp->charset);
+	n += sprintf(resp->header + n,
+			"Cache-Control: private, max-age=0, proxy-revalidate, no-store, no-cache, must-revalidate\r\n");
+	n += sprintf(resp->header + n, "Content-Length: %llu\r\n",
+			resp->body_length);
+	n += sprintf(resp->header + n, "\r\n");
+	resp->header_length = n;
+	req->state = SENDING_RESP_HEADER;
+	// go through to send_header
+	return 0;
+}
+
+/*
+ * request processing
+ * return:
+ * 	0 success
+ * 	other failure
+ */
 int process_request(struct request *req) {
 	struct response *resp = &req->resp;
-	switch (req->state) {
-		case CONN_ESTABLISHED:
-		case READING_REQ_HEADER:
-		case READING_REQ_BODY:
-			return read_request(req) >= 0;
-			break;
-		case REQ_RCVD:
-			{ // build header
-				resp->header_offset = 0;
-				char *fpath;
-				if (strcmp("/", req->uri) == 0)
-					fpath = "index.html";
-				else
-					fpath = "404.html";
-				resp->fd = open(fpath, O_RDONLY);
-				resp->content_type = "text/html";
-				resp->charset = "utf-8";
-				if (req->resp.fd != -1) {
-					resp->code = 200;
-					resp->reason = "OK";
-					struct stat st;
-					if (fstat(resp->fd, &st) < 0) {
-						warn("fstat");
-						resp->code = 500;
-						resp->reason = "Internal Error";
-						close(resp->fd);
-					}
-					resp->body_offset = 0;
-					resp->body_length = st.st_size;
-				} else {
-					if (errno == EACCES) {
-						resp->code = 403;
-						resp->reason = "Forbidden";
-					} else if (errno == EEXIST) {
-						resp->code = 404;
-						resp->reason = "Not Found";
-					} else {
-						resp->code = 500;
-						resp->reason = "Internal Server Error";
-					}
+	int stop = 1;
+	enum state old_state;
+	do {
+		old_state = req->state;
+		switch (req->state) {
+			case CONN_ESTABLISHED:
+			case READING_REQ_HEADER:
+			case READING_REQ_BODY:
+				if (req->readable == 0)
+					return 0;
+				if (read_request(req) < 0)
+					return -1;
+				if (req->state != old_state) {
+					stop = 0;
+					break;
 				}
-				if (resp->code != 200)
-					resp->body_length = 0;
-				int n = sprintf(resp->header, "HTTP/1.1 %d %s\r\n",
-						resp->code, resp->reason);
-				n += sprintf(resp->header + n, "Server: mhttpd/0.1\r\n");
-				n += sprintf(resp->header + n, "Content-Type: %s; charset=%s\r\n",
-						resp->content_type, resp->charset);
-				n += sprintf(resp->header + n,
-						"Cache-Control: private, max-age=0, proxy-revalidate, no-store, no-cache, must-revalidate\r\n");
-				n += sprintf(resp->header + n, "Content-Length: %llu\r\n",
-						resp->body_length);
-				n += sprintf(resp->header + n, "\r\n");
-				resp->header_length = n;
-				req->state = SENDING_RESP_HEADER;
-				// go through to send_header
-			}
-		case SENDING_RESP_HEADER:
-			return send_header(req) >= 0;
-		case SENDING_RESP_BODY:
-			return send_body(req) >= 0;
-		default:
-			printf("misc status: %d\n", req->state);
-			return -1;
-	}
+				if (req->readable == 0)
+					return 0;
+			case REQ_RCVD:
+				build_resp(req);
+			case SENDING_RESP_HEADER:
+				if (req->writable == 0)
+					return 0;
+				if (send_header(req) < 0)
+					return -1;
+				if (req->state != old_state) {
+					stop = 0;
+					break;
+				}
+				if (req->writable == 0)
+					return 0;
+			case SENDING_RESP_BODY:
+				if (req->writable == 0)
+					return 0;
+				if (send_body(req) < 0)
+					return -1;
+				if (req->state != old_state) {
+					stop = 0;
+					break;
+				}
+				if (req->writable == 0)
+					return 0;
+			case RESP_SENT:
+				close(req->sockfd);
+				return 0;
+			case CONN_ABORTED:
+				return -1;
+			default:
+				printf("misc status: %d\n", req->state);
+				return -1;
+		}
+	} while (!stop);
 	return 0;
 }
 
@@ -273,16 +364,17 @@ void* dispatch_request(struct server *server) {
 		do { // pull sockfd
 			req = ring_buffer_try_dequeue(server->requests);
 			if (req) {
-				ev.events = EPOLLIN | EPOLLRDHUP;
+				ev.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
 				ev.data.ptr = req;
-				if (epoll_ctl(epfd, EPOLL_CTL_ADD, req->sockfd, &ev) == 0)
+				if (epoll_ctl(epfd, EPOLL_CTL_ADD, req->sockfd, &ev) == 0) {
 					++nfd;
-				else {
+					printf("nfd = %d\n", nfd);
+				} else {
 					perror("epoll_ctl");
 					return NULL;
 				}
 			} else break;
-		} while (nfd < NEVENT);
+		} while (nfd < 5);
 		{ // epoll_wait
 			nev = epoll_wait(epfd, events, NEVENT, server->event_tmo);
 			if (nev == -1 && errno != EINTR) {
@@ -298,16 +390,11 @@ void* dispatch_request(struct server *server) {
 				if ((EPOLLRDHUP | EPOLLHUP ) & ev.events) {
 					rm = 1;
 				} else if ((EPOLLIN | EPOLLOUT) & ev.events) {
-					if (process_request(req) == 0) {
-						printf("remove:[%d]\n", req->sockfd);
+					req->readable = ev.events & EPOLLIN;
+					req->writable = ev.events & EPOLLOUT;
+					if (process_request(req) != 0) {
+						warn("process_request");
 						rm = 1;
-					}
-					if (req->state == REQ_RCVD) {
-						ev.events = EPOLLOUT | EPOLLRDHUP;
-						if (epoll_ctl(epfd, EPOLL_CTL_MOD, req->sockfd, &ev) != 0) {
-							perror("epoll_ctl");
-							return NULL;
-						}
 					}
 				} else {
 					printf("unrecognized events: [%x]\n", ev.events);
@@ -319,14 +406,9 @@ void* dispatch_request(struct server *server) {
 					rm = 1;
 				}
 				if (rm) {
-					sockfd = req->sockfd;
-					request_destroy(req);
-					if (epoll_ctl(epfd, EPOLL_CTL_DEL, sockfd, NULL) != 0) {
-						perror("epoll_ctl");
-						return NULL;
-					}
+					close(req->sockfd);
 					--nfd;
-					close(sockfd);
+					request_destroy(req);
 				}
 			}
 		} // epoll_wait end
