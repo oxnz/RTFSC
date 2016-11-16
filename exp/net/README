@@ -1,5 +1,15 @@
 ## 周末代码 hack
 
+### Repo Setup
+
+#### Update Repo
+
+```shell
+git remote add upstream https://github.com/oxnz/RTFSC.git
+git fetch upstream
+git merge upstream/master
+```
+
 ### 2016-11-16
 
 #### tasks
