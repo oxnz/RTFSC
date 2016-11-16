@@ -1,1 +1,9 @@
-周末代码hack
+## 周末代码 hack
+
+### 2016-11-16
+
+#### tasks
+
+* basic tcp server and client
+* multi-thread producer-consumer
+* multi-thread tcp server
