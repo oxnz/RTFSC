@@ -1,14 +1,16 @@
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "service.h"
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/types.h>
+
+#include "../service.h"
 
 void send_to_svr(int, const char *);
+void con(int , struct sockaddr_in);
+
 
 int main(){
     int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -26,19 +28,22 @@ int main(){
     }
     svraddr.sin_addr.s_addr = s_addr;
     svraddr.sin_port = htons(TCP_SRV_PORT);
+    char sendbuf[REQMAXLEN+1];
+
+    con(sock, svraddr);
+    strcpy(sendbuf, "login");
+    send_to_svr(sock, sendbuf);
+    close(sock);
+
+}
+
+void con(int sock, struct sockaddr_in svraddr)
+{
     int err_code = connect(sock, (struct sockaddr *)&svraddr, sizeof(svraddr));
     if(err_code == -1){
         perror("connect");
         exit(1);
     }
-    char sendbuf[REQMAXLEN+1];
-    strcpy(sendbuf, "login");
-    send_to_svr(sock, sendbuf);
-    strcpy(sendbuf, "err cmd");
-    send_to_svr(sock, sendbuf);
-    strcpy(sendbuf, "logout");
-    send_to_svr(sock, sendbuf);
-    close(sock);
 }
 
 void send_to_svr(int sockfd, const char * sendbuf){
@@ -63,5 +68,5 @@ void send_to_svr(int sockfd, const char * sendbuf){
         exit(1);
     }
     recvbuf[rec_len] = '\0';
-    printf("recv from server: [%d] %s\n", rec_len, recvbuf);
+    printf("recv from server: [%zd] %s\n", rec_len, recvbuf);
 }
