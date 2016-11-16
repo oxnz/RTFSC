@@ -5,5 +5,10 @@
 #### tasks
 
 * basic tcp server and client
+	* service.h [provided]
+	* tcpsrv.c [server]
+	* tcpcli.c [client]
 * multi-thread producer-consumer
+	* 2 producer
+	* 3 consumer
 * multi-thread tcp server
