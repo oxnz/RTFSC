@@ -18,22 +18,23 @@ void process_request(int client_fd, struct sockaddr_in client_addr)
     {
         perror("read");
         exit(-1);
-    }else
+    }
+    else
     {
         recv_buffer[len] = '\0';
     }
     printf("recv data: %s.\nrecv len : %zd\n", recv_buffer, len);
     if (strcmp(recv_buffer, "login") == 0)
     {
-        strcpy(send_buffer, "welcome\0");
+        strcpy(send_buffer, "welcome");
     }
     else if (strcmp(recv_buffer, "logout") == 0)
     {
-        strcpy(send_buffer, "bye\0");
+        strcpy(send_buffer, "bye");
     }
     else
     {
-        strcpy(send_buffer, "error\0");
+        strcpy(send_buffer, "error");
     }
     ssize_t wnum = write(client_fd, send_buffer, strlen(send_buffer));
     if (wnum != strlen(send_buffer))
