@@ -1,9 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include "service.h"
 
@@ -25,8 +26,8 @@ int main(){
     }
     svraddr.sin_addr.s_addr = s_addr;
     svraddr.sin_port = htons(TCP_SRV_PORT);
-    int connection = connect(sock, (struct sockaddr *)&svraddr, sizeof(svraddr));
-    if(connection == -1){
+    int err_code = connect(sock, (struct sockaddr *)&svraddr, sizeof(svraddr));
+    if(err_code == -1){
         perror("connect");
         exit(1);
     }
@@ -37,6 +38,7 @@ int main(){
     send_to_svr(sock, sendbuf);
     strcpy(sendbuf, "logout\0");
     send_to_svr(sock, sendbuf);
+    close(sock);
 }
 
 void send_to_svr(int sockfd, const char * sendbuf){
@@ -45,12 +47,14 @@ void send_to_svr(int sockfd, const char * sendbuf){
     ssize_t length = write(sockfd, sendbuf, sendbuf_len);
     if(length != sendbuf_len){
         perror("write");
+        close(sockfd);
         exit(1);
     }
     printf("send to server: %s\n", sendbuf);
     ssize_t rec_len = read(sockfd, recvbuf, RESMAXLEN);
     if(rec_len == -1){
         perror("read");
+        close(sockfd);
         exit(1);
     }
     recvbuf[rec_len] = '\0';
