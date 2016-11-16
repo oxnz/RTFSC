@@ -6,24 +6,30 @@
 
 #include "service.h"
 
-void client(int);
-void send_to_svr(int, char *);
+void send_to_svr(int, const char *);
 
 int main(){
-    printf("hello\n");
-    client(1);
-}
-
-void client(int clit_num){
-    printf("clit num = %d\n", clit_num);
     int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if(sock == -1){
+        printf("socket init failed\n");
+        exit(1);
+    }
     struct sockaddr_in svraddr;
     bzero(&svraddr, sizeof(svraddr));
     svraddr.sin_family = AF_INET;
-    svraddr.sin_addr.s_addr = inet_addr(TCP_SRV_ADDR);
+    s_addr = inet_addr(TCP_SRV_ADDR);
+    if(s_addr == -1){
+        printf("inet_addr failed\n");
+        exit(1);
+    }
+    svraddr.sin_addr.s_addr = s_addr;
     svraddr.sin_port = htons(TCP_SRV_PORT);
     int connection = connect(sock, (struct sockaddr *)&svraddr, sizeof(svraddr));
-    char sendbuf[REQMAXLEN];
+    if(connection == -1){
+        printf("connect failed\n");
+        exit(1);
+    }
+    char sendbuf[REQMAXLEN+1];
     strcpy(sendbuf, "login\0");
     send_to_svr(sock, sendbuf);
     strcpy(sendbuf, "err cmd\0");
@@ -33,10 +39,19 @@ void client(int clit_num){
 }
 
 void send_to_svr(int sockfd, char * sendbuf){
-    char recvbuf[RESMAXLEN];
-    int length = write(sockfd, sendbuf, strlen(sendbuf));
+    char recvbuf[RESMAXLEN+1];
+    sendbuf_len = strlen(sendbuf)
+    ssize_t length = write(sockfd, sendbuf, sendbuf_len);
+    if(length != sendbuf_len){
+        printf("write failed, write_len=%d, sendbuflen=%d", length, sendbuf_len);
+        exit(1);
+    }
     printf("send to server: %s\n", sendbuf);
     ssize_t rec_len = read(sockfd, recvbuf, RESMAXLEN);
+    if(rec_len == -1){
+        printf("read failed\n");
+        exit(1);
+    }
     recvbuf[rec_len] = '\0';
     printf("recv from server: [%d] %s\n", rec_len, recvbuf);
 }
