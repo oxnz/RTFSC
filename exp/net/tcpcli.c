@@ -32,11 +32,11 @@ int main(){
         exit(1);
     }
     char sendbuf[REQMAXLEN+1];
-    strcpy(sendbuf, "login\0");
+    strcpy(sendbuf, "login");
     send_to_svr(sock, sendbuf);
-    strcpy(sendbuf, "err cmd\0");
+    strcpy(sendbuf, "err cmd");
     send_to_svr(sock, sendbuf);
-    strcpy(sendbuf, "logout\0");
+    strcpy(sendbuf, "logout");
     send_to_svr(sock, sendbuf);
     close(sock);
 }
@@ -45,8 +45,13 @@ void send_to_svr(int sockfd, const char * sendbuf){
     char recvbuf[RESMAXLEN+1];
     size_t sendbuf_len = strlen(sendbuf);
     ssize_t length = write(sockfd, sendbuf, sendbuf_len);
-    if(length != sendbuf_len){
+    if(length == -1){
         perror("write");
+        close(sockfd);
+        exit(1);
+    }
+    else if(length != sendbuf_len){
+        perror("write loss");
         close(sockfd);
         exit(1);
     }
