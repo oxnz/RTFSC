@@ -12,24 +12,32 @@
 
 #include "../service.h"
 
-pthread_mutex_t mutex;
-sem_t semaph_res;
-sem_t semaph_free;
+sem_t SEM_FULL;
+sem_t SEM_EMPTY;
 
-#define queue_max_size 10
+#define QUEUE_SIZE 10
 
-int clientfd_q[queue_max_size];
-int q_head=0;
-int q_tail=0;
+struct RingBuf{
+    pthread_mutex_t lock;
+    int * clientfd_q;
+    int q_head;
+    int q_tail;
+};
+
+struct RingBuf CONN_BUF;
 
 void * producer(void *);
 void * consumer();
 void process_request(int);
 
 int main(){
-    sem_init(&semaph_free, 0, queue_max_size);
-    sem_init(&semaph_res, 0, 0);
-    pthread_mutex_init(&mutex, NULL);
+    sem_init(&SEM_EMPTY, 0, QUEUE_SIZE);
+    sem_init(&SEM_FULL, 0, 0);
+    pthread_mutex_init(&(CONN_BUF.lock), NULL);
+    CONN_BUF.clientfd_q = (int *)malloc(QUEUE_SIZE*sizeof(int));
+    CONN_BUF.q_head = 0;
+    CONN_BUF.q_tail = 0;
+
     struct sockaddr_in serv_addr;
     int serv_fd, client_fd;
     socklen_t len = sizeof(serv_addr);
@@ -61,8 +69,7 @@ int main(){
         return -1;
     }
     printf("listen success.\n");
-    pthread_t producers[2];
-    pthread_t consumers[3];
+    pthread_t producers[2], consumers[3];
     int rc;
     for(int i=0; i<3; i++){
     	if((rc = pthread_create(&consumers[i], NULL, (void *)consumer, NULL))){
@@ -93,24 +100,26 @@ void * producer(void * serv_fd){
             perror("accept");
             pthread_exit((void*)1);
         }
-        sem_wait(&semaph_free);
-        pthread_mutex_lock(&mutex);
-        clientfd_q[q_tail++] = client_fd;
-        pthread_mutex_unlock(&mutex);
-        sem_post(&semaph_res);
+        sem_wait(&SEM_EMPTY);
+        pthread_mutex_lock(&CONN_BUF.lock);
+        CONN_BUF.clientfd_q[CONN_BUF.q_tail] = client_fd;
+        CONN_BUF.q_tail = ++CONN_BUF.q_tail % QUEUE_SIZE;
+        pthread_mutex_unlock(&CONN_BUF.lock);
+        sem_post(&SEM_FULL);
     }
     return (void*)0;
 }
 
 void * consumer(){
     while(1){
-        sem_wait(&semaph_res);
-        pthread_mutex_lock(&mutex);
-        int client_fd = clientfd_q[q_head++];
+        sem_wait(&SEM_FULL);
+        pthread_mutex_lock(&CONN_BUF.lock);
+        int client_fd = CONN_BUF.clientfd_q[CONN_BUF.q_head];
+	CONN_BUF.q_head = ++CONN_BUF.q_head % QUEUE_SIZE;
         process_request(client_fd);
         close(client_fd);
-        pthread_mutex_unlock(&mutex);
-        sem_post(&semaph_free);
+        pthread_mutex_unlock(&CONN_BUF.lock);
+        sem_post(&SEM_EMPTY);
     }
     return (void*)0;
 }
