@@ -92,34 +92,70 @@ int main(){
 }
 
 void * producer(void * serv_fd){
+    int client_fd;
+    struct sockaddr_in client_addr;
+    socklen_t len = sizeof(client_addr);
+    int retcode, islocked, isunlocked;
     while(1){
-        int client_fd;
-        struct sockaddr_in client_addr;
-	socklen_t len = sizeof(client_addr);
         if ((client_fd = accept(*(int*)serv_fd, (struct sockaddr *)&client_addr, &len)) < 0){
             perror("accept");
             pthread_exit((void*)1);
         }
-        sem_wait(&SEM_EMPTY);
-        pthread_mutex_lock(&CONN_BUF.lock);
+        retcode = sem_wait(&SEM_EMPTY);
+        if(retcode != 0){
+	    perror("sem_wait");
+	    pthread_exit((void*)1);
+        }
+        islocked = pthread_mutex_lock(&CONN_BUF.lock);
+        if(islocked != 0){
+	    perror("pthread_mutex_lock");
+	    pthread_exit((void*)1);
+        }
         CONN_BUF.clientfd_q[CONN_BUF.q_tail] = client_fd;
         CONN_BUF.q_tail = ++CONN_BUF.q_tail % QUEUE_SIZE;
-        pthread_mutex_unlock(&CONN_BUF.lock);
-        sem_post(&SEM_FULL);
+        isunlocked = pthread_mutex_unlock(&CONN_BUF.lock);
+        if(isunlocked != 0){
+	    perror("pthread_mutex_unlock");
+	    pthread_exit((void*)1);
+        }
+        retcode = sem_post(&SEM_FULL);
+        if(retcode != 0){
+	    perror("sem_post");
+	    pthread_exit((void*)1);
+        }
+        
     }
     return (void*)0;
 }
 
 void * consumer(){
+    int retcode, islocked, isunlocked;
+    int client_fd;
     while(1){
-        sem_wait(&SEM_FULL);
-        pthread_mutex_lock(&CONN_BUF.lock);
-        int client_fd = CONN_BUF.clientfd_q[CONN_BUF.q_head];
+        retcode = sem_wait(&SEM_FULL);
+        if(retcode != 0){
+	    perror("sem_wait");
+	    pthread_exit((void*)1);
+        }
+        islocked = pthread_mutex_lock(&CONN_BUF.lock);
+        if(islocked != 0){
+	    perror("pthread_mutex_lock");
+	    pthread_exit((void*)1);
+        }
+        client_fd = CONN_BUF.clientfd_q[CONN_BUF.q_head];
 	CONN_BUF.q_head = ++CONN_BUF.q_head % QUEUE_SIZE;
+        isunlocked = pthread_mutex_unlock(&CONN_BUF.lock);
+        if(isunlocked != 0){
+	    perror("pthread_mutex_unlock");
+	    pthread_exit((void*)1);
+        }
+        retcode = sem_post(&SEM_EMPTY);
+        if(retcode != 0){
+	    perror("sem_post");
+	    pthread_exit((void*)1);
+        }
         process_request(client_fd);
         close(client_fd);
-        pthread_mutex_unlock(&CONN_BUF.lock);
-        sem_post(&SEM_EMPTY);
     }
     return (void*)0;
 }
