@@ -83,11 +83,22 @@ int main(){
             exit(1);
     	}
     }
+    void * tret;
     for(int i=0; i<2; i++){
-        pthread_join(producers[i], (void**)0);
+        rc = pthread_join(producers[i], &tret);
+        if(rc != 0){
+            perror("pthread_join");
+            exit(1);
+        }
+        printf("producers[%d] retcode=%d", i, (size_t)tret);
     }
     for(int i=0; i<3; i++){
-        pthread_join(consumers[i], (void**)0);
+        rc = pthread_join(consumers[i], &tret);
+        if(rc != 0){
+            perror("pthread_join");
+            exit(1);
+        }
+        printf("consumers[%d] retcode=%d", i, (size_t)tret);
     }
 }
 
