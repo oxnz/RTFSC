@@ -103,10 +103,9 @@ int main(){
 }
 
 void * producer(void * serv_fd){
-    int client_fd;
+    int client_fd, retcode;
     struct sockaddr_in client_addr;
     socklen_t len = sizeof(client_addr);
-    int retcode, islocked, isunlocked;
     while(1){
         if ((client_fd = accept(*(int*)serv_fd, (struct sockaddr *)&client_addr, &len)) < 0){
             perror("accept");
@@ -117,15 +116,15 @@ void * producer(void * serv_fd){
 	    perror("sem_wait");
 	    pthread_exit((void*)1);
         }
-        islocked = pthread_mutex_lock(&CONN_BUF.lock);
-        if(islocked != 0){
+        retcode = pthread_mutex_lock(&CONN_BUF.lock);
+        if(retcode != 0){
 	    perror("pthread_mutex_lock");
 	    pthread_exit((void*)1);
         }
         CONN_BUF.clientfd_q[CONN_BUF.q_tail] = client_fd;
         CONN_BUF.q_tail = ++CONN_BUF.q_tail % QUEUE_SIZE;
-        isunlocked = pthread_mutex_unlock(&CONN_BUF.lock);
-        if(isunlocked != 0){
+        retcode = pthread_mutex_unlock(&CONN_BUF.lock);
+        if(retcode != 0){
 	    perror("pthread_mutex_unlock");
 	    pthread_exit((void*)1);
         }
@@ -140,23 +139,22 @@ void * producer(void * serv_fd){
 }
 
 void * consumer(){
-    int retcode, islocked, isunlocked;
-    int client_fd;
+    int client_fd, retcode;
     while(1){
         retcode = sem_wait(&SEM_FULL);
         if(retcode != 0){
 	    perror("sem_wait");
 	    pthread_exit((void*)1);
         }
-        islocked = pthread_mutex_lock(&CONN_BUF.lock);
-        if(islocked != 0){
+        retcode = pthread_mutex_lock(&CONN_BUF.lock);
+        if(retcode != 0){
 	    perror("pthread_mutex_lock");
 	    pthread_exit((void*)1);
         }
         client_fd = CONN_BUF.clientfd_q[CONN_BUF.q_head];
 	CONN_BUF.q_head = ++CONN_BUF.q_head % QUEUE_SIZE;
-        isunlocked = pthread_mutex_unlock(&CONN_BUF.lock);
-        if(isunlocked != 0){
+        retcode = pthread_mutex_unlock(&CONN_BUF.lock);
+        if(retcode != 0){
 	    perror("pthread_mutex_unlock");
 	    pthread_exit((void*)1);
         }
