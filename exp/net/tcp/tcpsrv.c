@@ -64,6 +64,7 @@ int main()
     }
     serv_addr.sin_addr.s_addr = tcp_srv_addr;
     serv_addr.sin_port = htons(TCP_SRV_PORT);
+    serv_addr.sin_family = AF_INET;
 
     if (bind(serv_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
