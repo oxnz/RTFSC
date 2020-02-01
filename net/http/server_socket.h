@@ -26,12 +26,9 @@
 #include <arpa/inet.h>
 
 struct server_socket {
-	in_addr_t addr;
-	in_port_t port;
-	int sockfd;
+		int sockfd;
+		server_socket(in_addr_t addr, in_port_t port);
+		~server_socket();
 };
-
-int server_socket_init(struct server_socket *skt);
-int server_socket_destroy(struct server_socket *skt);
 
 #endif//_SERVER_SOCKET_H_

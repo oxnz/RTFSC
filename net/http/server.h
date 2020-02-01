@@ -23,51 +23,59 @@
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
+#include <exception>
+#include <error.h>
+#include <errno.h>
+#include <syslog.h>
 #include <pthread.h>
 
-#include "ring_buffer.h"
+#include "thread_pool.h"
 #include "server_socket.h"
+#include "process_request.h"
 
-#define REQMAXLEN 512
-#define RSPMAXLEN 512
-#define URIMAXLEN 1024
 #define TCP_SERVICE_PORT 8000
 #define NWORKER 2
 #define NEVENT 128
 #define NEVTMO 1000
 
 enum server_status {
-	SVR_RUNNING,
-	SVR_PAUSED,
-	SVR_STOPPING_LISTENER,
-	SVR_STOPPING_WORKER,
-	SVR_STOPPED,
+		SVR_RUNNING,
+		SVR_PAUSED,
+		SVR_STOPPING_LISTENER,
+		SVR_STOPPING_WORKER,
+		SVR_STOPPED,
 };
 
 struct server {
-	struct server_socket server_socket;
-	enum server_status state;
-	pthread_mutex_t state_mutex;
-	struct ring_buffer *requests;
-	ssize_t nrequest;
-	ssize_t nrequest_max;
-	pthread_t *workers;
-	ssize_t nworker;
-	ssize_t nworker_min;
-	ssize_t nworker_max;
-	pthread_t listener;
-	size_t nevent;
-	ssize_t event_tmo;
+		server_socket socket;
+		enum server_status state;
+		pthread_mutex_t state_mutex;
+		concurrent_vector<request> requests;
+		ssize_t nrequest;
+		ssize_t nrequest_max;
+		ssize_t nworker;
+		ssize_t nworker_min;
+		ssize_t nworker_max;
+		size_t nevent;
+		ssize_t event_tmo;
+		server();
+		~server();
+
+		void startup();
+		void shutdown();
+		void restart();
+		void pause();
+		void resume();
+		void serve();
+private:
+		multiprocessing::thread_pool m_pool;
 };
 
-int server_init(struct server *svr);
-int server_destroy(struct server *svr);
+void* accept_request(server* server);
+void* dispatch_request(server* server);
 
-int server_startup(struct server *svr);
-int server_shutdown(struct server *svr);
-int server_restart(struct server *svr);
-
-int server_pause(struct server *svr);
-int server_resume(struct server *svr);
+inline void require(bool cond, const char* msg) {
+		if (!cond) throw std::invalid_argument(msg);
+}
 
 #endif//_SERVER_H_
