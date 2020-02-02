@@ -22,8 +22,8 @@
 
 #include <string.h>
 #include <unistd.h>
-#include "server.h"
-#include "server_socket.h"
+#include <server.h>
+#include <server_socket.h>
 
 server_socket::server_socket(in_addr_t addr, in_port_t port) {
 	struct sockaddr_in sockaddr;

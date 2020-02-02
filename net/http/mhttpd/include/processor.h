@@ -120,7 +120,8 @@ private:
 				}
 				if (req.state == CONN_ABORTED) {
 						rm = true;
-				} else if (req.state == RESP_SENT) {
+				}
+				if (req.state == RESP_SENT) {
 						rm = true;
 				}
 				if (rm) {

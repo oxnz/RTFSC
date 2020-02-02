@@ -26,7 +26,7 @@
 #include "processor.h"
 #include "process_request.h"
 
-server::server() : m_pool(std::thread::hardware_concurrency()),
+server::server(configuration& config) : m_pool(config.concurrency()),
 		socket(INADDR_ANY, 8000), nrequest_max(1024),
 		nworker_min(16),
 		nworker_max(32),
@@ -36,12 +36,6 @@ server::server() : m_pool(std::thread::hardware_concurrency()),
 				openlog(NULL, LOG_PERROR, LOG_USER);
 				//setlogmask(LOG_INFO | LOG_ERR);
 				{ // static int server_validate() {
-						require(nrequest_max > 0, "nrequest_max < 1");
-						require(nworker_min > 0, "nwoeker_min < 1");
-						require(nworker_max > 0, "nworker_max < 1");
-						require(nworker_max >= nworker_min, "nworker_max < nworker_min");
-						require(nevent > 0, "nevent < 1");
-						require(event_tmo > 0, "event_tmo < 1");
 				}
 				}
 
@@ -51,19 +45,18 @@ server::server() : m_pool(std::thread::hardware_concurrency()),
 
 				void server::startup() {
 						state = SVR_RUNNING;
-						for (size_t i = 0; i < 2; ++i) m_pool.emplace(processor(*this));
+						syslog(LOG_INFO, "[server] starting");
+						for (size_t i = 0; i < 4; ++i) m_pool.emplace(processor(*this));
+						syslog(LOG_INFO, "[server] started");
 				}
 
 				void server::shutdown() {
-						syslog(LOG_INFO, "[stopping]");
+						syslog(LOG_INFO, "[server] stopping");
 						state = SVR_STOPPING_LISTENER;
-						//m_listener.join();
-						syslog(LOG_INFO, "[listener] stopped");
 						state = SVR_STOPPING_WORKER;
 						m_pool.join();
-						syslog(LOG_INFO, "[worker(s)] stopped");
 						state = SVR_STOPPED;
-						syslog(LOG_INFO, "[stopped]");
+						syslog(LOG_INFO, "[server] stopped");
 						closelog();
 				}
 
@@ -81,9 +74,7 @@ server::server() : m_pool(std::thread::hardware_concurrency()),
 										throw std::runtime_error("pthread_sigmask");
 								}
 						}
-						syslog(LOG_INFO, "[starting]");
 						startup();
-						syslog(LOG_INFO, "[started]");
 						{ // signal handling
 								tmo.tv_sec = 0;
 								tmo.tv_nsec = 100000000; // 100 ms

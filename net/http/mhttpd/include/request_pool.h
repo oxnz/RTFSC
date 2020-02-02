@@ -9,6 +9,8 @@
 #include <array>
 #include <vector>
 #include <mutex>
+#include <sstream>
+#include <iostream>
 
 enum method { HEAD, GET, POST };
 
@@ -23,7 +25,7 @@ enum state {
 		CONN_ABORTED,
 };
 
-const size_t REQMAXLEN = 512;
+const size_t REQMAXLEN = 4096;
 const size_t RSPMAXLEN = 512;
 const size_t URIMAXLEN = 1024;
 
@@ -48,13 +50,29 @@ struct request {
 		char raw[REQMAXLEN];
 		size_t offset;
 		enum state state;
-		enum method method;
-		char *uri;
+		std::string method;
+		std::string uri;
+		std::string http_version;
 		struct response resp;
 		bool readable;
 		bool writable;
 		request() : request(-1) {}
-		request(int fd): sockfd(fd), raw("\0"), offset(0), state(CONN_ESTABLISHED), uri(NULL) { }
+		request(int fd): sockfd(fd), raw("\0"), offset(0), state(CONN_ESTABLISHED) { }
+		void stub(const std::string& s) {
+				std::istringstream ss(s);
+				ss >> method >> uri >> http_version;
+				state = REQ_RCVD;
+		}
+		bool has_body() const {
+		}
+		std::string path() const {
+				std::string _path = uri;
+				if (_path.front() == '/') _path = _path.substr(1);
+				if (_path.empty() || _path.back() == '/') return _path + "index.html";
+				return _path;
+		}
+		void freeze() {
+		}
 };
 
 #include <shared_mutex>

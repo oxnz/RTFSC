@@ -20,9 +20,8 @@
 
 #include <semaphore.h>
 
-#include "process_request.h"
-#include "ring_buffer.h"
-#include "server.h"
+#include <process_request.h>
+#include <server.h>
 
 ssize_t read_request(request &req) {
 		ssize_t n;
@@ -49,28 +48,9 @@ ssize_t read_request(request &req) {
 				}
 		} while (req.readable);
 		if (req.state == CONN_ESTABLISHED) {
-				char *p = strstr(req.raw, "\n\r\n");
-				if (p) { // parse header
-						if (strncmp(req.raw, "GET ", 4) == 0) {
-								req.method = GET;
-								req.state = REQ_RCVD;
-								p = strchr(req.raw + 4, ' ');
-								req.uri = strndup(req.raw + 4, p - req.raw - 4);
-						} else if (strncmp(req.raw, "POST ", 5) == 0) {
-								req.method = POST;
-								req.state = READING_REQ_BODY;
-								p = strchr(req.raw + 5, ' ');
-								req.uri = strndup(req.raw + 5, p - req.raw - 4);
-						} else if (strncmp(req.raw, "HEAD ", 5) == 0) {
-								req.method = HEAD;
-								req.state = REQ_RCVD;
-								p = strchr(req.raw + 5, ' ');
-								req.uri = strndup(req.raw + 5, p - req.raw - 4);
-						} else {
-								req.state = CONN_ABORTED;
-								syslog(LOG_ERR, "unsupported request method");
-								return -1;
-						}
+				char *p = strstr(req.raw, "\r\n\r\n");
+				if (p) {
+						req.stub(std::string(req.raw, p-req.raw));
 				}
 		}
 		return sum >= 0 ? sum : -1;
@@ -139,13 +119,7 @@ ssize_t send_body(request &req) {
 int build_resp(request& req) {
 		response &resp = req.resp;
 		resp.header_offset = 0;
-		const char *fpath;
-		if (strcmp("/", req.uri) == 0)
-				fpath = "index.html";
-		else if (strlen(req.uri) > 0 && req.uri[0] == '/') {
-				fpath = req.uri + 1;
-		} else
-				fpath = "404.html";
+		const char *fpath = req.path().c_str();
 		resp.fd = open(fpath, O_RDONLY | O_NONBLOCK);
 		resp.content_type = "text/html";
 		resp.charset = "utf-8";

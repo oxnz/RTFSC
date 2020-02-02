@@ -29,6 +29,9 @@
 #include <syslog.h>
 #include <pthread.h>
 
+#include "config.h"
+#include "helper.h"
+#include "logger.h"
 #include "thread_pool.h"
 #include "server_socket.h"
 #include "process_request.h"
@@ -58,7 +61,7 @@ struct server {
 		ssize_t nworker_max;
 		size_t nevent;
 		ssize_t event_tmo;
-		server();
+		server(configuration& config);
 		~server();
 
 		void startup();
@@ -73,9 +76,5 @@ private:
 
 void* accept_request(server* server);
 void* dispatch_request(server* server);
-
-inline void require(bool cond, const char* msg) {
-		if (!cond) throw std::invalid_argument(msg);
-}
 
 #endif//_SERVER_H_
