@@ -64,6 +64,7 @@ struct request {
 				state = REQ_RCVD;
 		}
 		bool has_body() const {
+			return method == "POST" || method == "PUT";
 		}
 		std::string path() const {
 				std::string _path = uri;

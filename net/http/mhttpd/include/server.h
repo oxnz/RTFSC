@@ -24,7 +24,7 @@
 #define _SERVER_H_
 
 #include <exception>
-#include <error.h>
+//#include <error.h>
 #include <errno.h>
 #include <syslog.h>
 #include <pthread.h>

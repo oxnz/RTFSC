@@ -11,7 +11,6 @@
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/epoll.h>
 #include <sys/sendfile.h>
 
 #include <fcntl.h>
