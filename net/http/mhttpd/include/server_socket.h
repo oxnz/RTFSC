@@ -27,7 +27,7 @@
 
 struct server_socket {
     int sockfd;
-    server_socket(in_addr_t addr, in_port_t port);
+    server_socket(const struct sockaddr_in& sockaddr);
     ~server_socket();
 };
 

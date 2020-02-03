@@ -131,7 +131,7 @@ private:
         }
     }
     void process() {
-        int nfd = epoll_wait(m_epfd, m_events, m_capacity, m_server.event_tmo);
+        int nfd = epoll_wait(m_epfd, m_events, m_capacity, m_server.config.event_timeout());
         if (nfd == -1) {
             syslog(LOG_ERR, "[%s] epoll_wait: %s", m_name.c_str(), strerror(errno));
             return;

@@ -7,6 +7,7 @@
 #define MHTTPD_VERSION_TWEAK 
 #define MHTTPD_VERSION "1.0.0"
 
+#include <functional>
 #include <stdexcept>
 #include <chrono>
 #include <errno.h>
@@ -23,11 +24,16 @@ struct configuration {
 		m_signal_timeout(signal_timeout), 
 		m_event_timeout(event_timeout) {
 				addr(in_addr, in_port);
+                openlog(NULL, LOG_PERROR, LOG_USER);
+                //setlogmask(LOG_INFO | LOG_ERR);
 		}
 		configuration() : configuration(INADDR_ANY, 8000, std::thread::hardware_concurrency(),
-						std::chrono::milliseconds(500),
-						std::chrono::milliseconds(100)
+						std::chrono::milliseconds(1000),
+						std::chrono::milliseconds(500)
 						) {}
+        ~configuration() {
+            closelog();
+        }
 		void addr(in_addr_t addr, in_port_t port) {
 				memset(&m_addr, 0, sizeof(m_addr));
 				m_addr.sin_family = AF_INET;
@@ -57,6 +63,9 @@ struct configuration {
 		struct timespec signal_timeout() const {
 				size_t ms = m_signal_timeout.count();
 				return timespec{static_cast<int>(ms/1000), static_cast<int>((ms%1000)*1000*1000)};
+		}
+		size_t event_timeout() const {
+				return m_event_timeout.count();
 		}
 		private:
 		struct sockaddr_in m_addr;

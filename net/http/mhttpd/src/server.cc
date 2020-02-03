@@ -27,7 +27,7 @@
 #include "process_request.h"
 
 server::server(configuration& config) : config(config),
-    socket(INADDR_ANY, 8000),
+    socket(config.addr()),
     state (SVR_RUNNING) {
     for (auto i = 0; i < config.concurrency(); ++i)
         m_workers.emplace_back(processor(std::string("worker-") + std::to_string(i), *this));

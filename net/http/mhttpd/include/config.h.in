@@ -7,6 +7,7 @@
 #define MHTTPD_VERSION_TWEAK @PROJECT_VERSION_TWEAK@
 #define MHTTPD_VERSION "@PROJECT_VERSION@"
 
+#include <functional>
 #include <stdexcept>
 #include <chrono>
 #include <errno.h>
@@ -27,8 +28,8 @@ struct configuration {
                 //setlogmask(LOG_INFO | LOG_ERR);
 		}
 		configuration() : configuration(INADDR_ANY, 8000, std::thread::hardware_concurrency(),
-						std::chrono::milliseconds(500),
-						std::chrono::milliseconds(100)
+						std::chrono::milliseconds(1000),
+						std::chrono::milliseconds(500)
 						) {}
         ~configuration() {
             closelog();
@@ -62,6 +63,9 @@ struct configuration {
 		struct timespec signal_timeout() const {
 				size_t ms = m_signal_timeout.count();
 				return timespec{static_cast<int>(ms/1000), static_cast<int>((ms%1000)*1000*1000)};
+		}
+		size_t event_timeout() const {
+				return m_event_timeout.count();
 		}
 		private:
 		struct sockaddr_in m_addr;

@@ -47,7 +47,7 @@ server_socket::server_socket(const struct sockaddr_in& sockaddr) {
         syslog(LOG_ERR, "listen");
         throw std::runtime_error("listen");
     }
-    syslog(LOG_INFO, "[listener]: listening on addr: [%s]", to_string(sockaddr).c_str());
+    syslog(LOG_INFO, "[listener]: listening on addr: [%s]", repr(sockaddr).c_str());
 }
 
 server_socket::~server_socket() {
