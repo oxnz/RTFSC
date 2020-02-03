@@ -74,15 +74,21 @@ private:
     void process(struct epoll_event& ev) {
         size_t idx = ev.data.u64;
         if (idx == 0) {
-            if (!full() && EPOLLIN & ev.events) {
+				if (!(EPOLLIN & ev.events)) {
+                syslog(LOG_ERR, "[%s][listener][event]: %x", m_name.c_str(), ev.events);
+				return;
+				}
+            while (!full()) {
                 struct sockaddr_in addr;
                 socklen_t addrlen = sizeof(addr);
                 int sockfd = accept4(m_server.socket.sockfd, (struct sockaddr*)&addr, &addrlen, SOCK_NONBLOCK | SOCK_CLOEXEC);
+				if (-1 == sockfd) {
+						syslog(LOG_ERR, "[%s]accept: %s", m_name.c_str(), strerror(errno));
+						break;
+				}
                 request req(sockfd);
                 req.addr = std::to_string(htons(addr.sin_port));
                 enq(req);
-            } else {
-                syslog(LOG_ERR, "[%s][listener][event]: %x", m_name.c_str(), ev.events);
             }
             return;
         }

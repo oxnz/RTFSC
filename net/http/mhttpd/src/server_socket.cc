@@ -23,6 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <server.h>
+#include <fcntl.h>
 #include <server_socket.h>
 #include "helper.h"
 
@@ -33,6 +34,11 @@ server_socket::server_socket(const struct sockaddr_in& sockaddr) {
         syslog(LOG_ERR, "[socket]: %s", strerror(errno));
         throw std::runtime_error("socket");
     }
+	if (-1 == fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK)) {
+		syslog(LOG_ERR, "[listener] fcntl: %s", strerror(errno));
+		close(sockfd);
+		throw std::runtime_error("fcntl");
+	}
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
                    &optval, sizeof(optval)) < 0) {
         syslog(LOG_ERR, "[setsockopt]: %s", strerror(errno));
