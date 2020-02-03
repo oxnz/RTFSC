@@ -42,6 +42,14 @@ struct response {
     const char *charset;
     int fd;
     int has_body;
+
+    size_t content_length() const {
+        return 0;
+    }
+
+    void commit() {
+        // finalize response
+    }
 };
 
 struct request {
@@ -61,7 +69,7 @@ struct request {
     void stub(const std::string& s) {
         std::istringstream ss(s);
         ss >> method >> uri >> http_version;
-        state = REQ_RCVD;
+        state = has_body() ? READING_REQ_BODY : REQ_RCVD;
     }
     bool has_body() const {
         return method == "POST" || method == "PUT";
@@ -72,6 +80,17 @@ struct request {
         if (_path.empty() || _path.back() == '/') return _path + "index.html";
         return _path;
     }
+    size_t content_length() const {
+        return 0;
+    }
+    std::string content_type() const {
+        return "text/plain";
+    }
+    char* context() const {
+        return nullptr;
+    }
+    void header(const std::string& name, const std::string& value) {}
+    std::string header(const std::string& name) const { return ""; }
     void freeze() {
     }
 };
