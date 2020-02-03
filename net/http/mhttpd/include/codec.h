@@ -5,12 +5,12 @@
 
 template <typename T>
 struct encoder {
-		virtual std::string encode(const T& in) = 0;
+    virtual std::string encode(const T& in) = 0;
 };
 
 template <typename T>
 struct decoder {
-		virtual T decode(const std::string& raw) = 0;
+    virtual T decode(const std::string& raw) = 0;
 };
 
 template <typename T, typename U>

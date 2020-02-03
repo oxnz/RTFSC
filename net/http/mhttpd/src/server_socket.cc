@@ -24,44 +24,32 @@
 #include <unistd.h>
 #include <server.h>
 #include <server_socket.h>
+#include "helper.h"
 
-server_socket::server_socket(in_addr_t addr, in_port_t port) {
-	struct sockaddr_in sockaddr;
-	char addr_buf[INET_ADDRSTRLEN] = "misc";
-	int optval = 1;
+server_socket::server_socket(const struct sockaddr_in& sockaddr) {
+    int optval = 1;
 
-	if ((sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-		syslog(LOG_ERR, "[socket]: %s", strerror(errno));
-		throw std::runtime_error("socket");
-	}
-	{ // setup addr
-		memset(&sockaddr, 0, sizeof(sockaddr));
-		sockaddr.sin_family = AF_INET;
-		sockaddr.sin_addr.s_addr = htonl(addr);
-		sockaddr.sin_port = htons(port);
-	}
-
-	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
-				&optval, sizeof(optval)) < 0) {
-		syslog(LOG_ERR, "[setsockopt]: %s", strerror(errno));
-		throw std::runtime_error("setsockopt");
-	}
-	if (bind(sockfd, (struct sockaddr *) &sockaddr, sizeof(sockaddr)) < 0) {
-		syslog(LOG_ERR, "[bind]: %s", strerror(errno));
-		throw std::runtime_error("bind");
-	}
-	if (listen(sockfd, SOMAXCONN) < 0) {
-		close(sockfd);
-		syslog(LOG_ERR, "listen");
-		throw std::runtime_error("listen");
-	}
-	if (NULL == inet_ntop(AF_INET, &sockaddr.sin_addr, addr_buf, INET_ADDRSTRLEN)) {
-		syslog(LOG_ERR, "[inet_ntop]: %s", strerror(errno));
-	}
-	syslog(LOG_INFO, "[process: %d]: listening on addr: [%s:%d]", getpid(), addr_buf, port);
-
+    if ((sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+        syslog(LOG_ERR, "[socket]: %s", strerror(errno));
+        throw std::runtime_error("socket");
+    }
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
+                   &optval, sizeof(optval)) < 0) {
+        syslog(LOG_ERR, "[setsockopt]: %s", strerror(errno));
+        throw std::runtime_error("setsockopt");
+    }
+    if (bind(sockfd, (struct sockaddr *) &sockaddr, sizeof(sockaddr)) < 0) {
+        syslog(LOG_ERR, "[bind]: %s", strerror(errno));
+        throw std::runtime_error("bind");
+    }
+    if (listen(sockfd, SOMAXCONN) < 0) {
+        close(sockfd);
+        syslog(LOG_ERR, "listen");
+        throw std::runtime_error("listen");
+    }
+    syslog(LOG_INFO, "[listener]: listening on addr: [%s]", to_string(sockaddr).c_str());
 }
 
 server_socket::~server_socket() {
-	close(sockfd);
+    close(sockfd);
 }

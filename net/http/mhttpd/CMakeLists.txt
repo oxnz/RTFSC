@@ -4,7 +4,7 @@ project(mhttpd VERSION 1.0.0 LANGUAGES CXX)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-file(GLOB mhttpd_SRC
+file(GLOB mhttpd_SOURCES
         "${PROJECT_SOURCE_DIR}/include/*.h"
         "${PROJECT_SOURCE_DIR}/src/*.cc"
 )
@@ -12,7 +12,7 @@ configure_file(
         "${PROJECT_SOURCE_DIR}/include/config.h.in"
         "${PROJECT_SOURCE_DIR}/include/config.h"
 		)
-add_executable(mhttpd ${mhttpd_SRC})
+add_executable(mhttpd ${mhttpd_SOURCES})
 target_include_directories(
 		mhttpd
 		PUBLIC

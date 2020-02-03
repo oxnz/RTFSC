@@ -12,7 +12,7 @@
  * Revision history:	[NONE]
  * Date Author Remarks:	[NONE]
  *
- * License: 
+ * License:
  * Copyright (c) 2013 Oxnz
  *
  * Distributed under terms of the [LICENSE] license.
@@ -26,9 +26,9 @@
 #include <arpa/inet.h>
 
 struct server_socket {
-		int sockfd;
-		server_socket(in_addr_t addr, in_port_t port);
-		~server_socket();
+    int sockfd;
+    server_socket(in_addr_t addr, in_port_t port);
+    ~server_socket();
 };
 
 #endif//_SERVER_SOCKET_H_

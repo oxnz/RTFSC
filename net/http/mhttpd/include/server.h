@@ -12,7 +12,7 @@
  * Revision history:	[NONE]
  * Date Author Remarks:	[NONE]
  *
- * License: 
+ * License:
  * Copyright (c) 2013 Oxnz
  *
  * Distributed under terms of the [LICENSE] license.
@@ -27,12 +27,10 @@
 //#include <error.h>
 #include <errno.h>
 #include <syslog.h>
-#include <pthread.h>
 
 #include "config.h"
 #include "helper.h"
 #include "logger.h"
-#include "thread_pool.h"
 #include "server_socket.h"
 #include "process_request.h"
 
@@ -42,36 +40,25 @@
 #define NEVTMO 1000
 
 enum server_status {
-		SVR_RUNNING,
-		SVR_PAUSED,
-		SVR_STOPPING_LISTENER,
-		SVR_STOPPING_WORKER,
-		SVR_STOPPED,
+    SVR_RUNNING,
+    SVR_PAUSED,
+    SVR_STOPPING_LISTENER,
+    SVR_STOPPING_WORKER,
+    SVR_STOPPED,
 };
 
 struct server {
-		server_socket socket;
-		enum server_status state;
-		pthread_mutex_t state_mutex;
-		concurrent_vector<request> requests;
-		ssize_t nrequest;
-		ssize_t nrequest_max;
-		ssize_t nworker;
-		ssize_t nworker_min;
-		ssize_t nworker_max;
-		size_t nevent;
-		ssize_t event_tmo;
-		server(configuration& config);
-		~server();
+    server_socket socket;
+    enum server_status state;
 
-		void startup();
-		void shutdown();
-		void restart();
-		void pause();
-		void resume();
-		void serve();
+    server(configuration& config);
+    ~server();
+
+    void serve();
+    const configuration& config;
 private:
-		multiprocessing::thread_pool m_pool;
+    std::mutex m_state_mutex;
+    std::vector<std::thread> m_workers;
 };
 
 void* accept_request(server* server);
