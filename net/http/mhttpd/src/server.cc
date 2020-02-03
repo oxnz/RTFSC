@@ -26,10 +26,8 @@
 #include "processor.h"
 #include "process_request.h"
 
-server::server(configuration& config) : config(config),
-    socket(config.addr()),
-    state (SVR_RUNNING) {
-    for (auto i = 0; i < config.concurrency(); ++i)
+server::server(configuration& config) : socket(config.addr()),state (SVR_RUNNING),config(config) {
+    for (size_t i = 0; i < config.concurrency(); ++i)
         m_workers.emplace_back(processor(std::string("worker-") + std::to_string(i), *this));
 }
 
@@ -45,7 +43,9 @@ server::~server() {
 void server::serve() {
     sigset_t sigset;
     siginfo_t siginfo;
+#ifdef __linux__
     struct timespec tmo = config.signal_timeout();
+#endif
     { // blocking all signals
         sigfillset(&sigset);
         if (pthread_sigmask(SIG_BLOCK, &sigset, NULL) != 0) {
@@ -57,8 +57,13 @@ void server::serve() {
         sigaddset(&sigset, SIGINT);
         sigfillset(&sigset);
         do {
+#ifdef __linux__
             int signo = sigtimedwait(&sigset, &siginfo, &tmo);
-            //int signo = sigwaitinfo(&sigset, &siginfo);
+#elif __APPLE__
+            int signo;
+            int ret = sigwait(&sigset, &signo);
+            if (ret == -1) signo = ret;
+#endif
             if (signo == -1) {
                 if (errno == EAGAIN || errno == EINTR) {
                     continue;

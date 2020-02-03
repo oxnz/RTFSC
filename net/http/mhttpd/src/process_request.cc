@@ -11,8 +11,13 @@
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/sendfile.h>
-
+#ifdef __linux__
+    #include <sys/sendfile.h>
+#elif __APPLE__
+    #include <sys/types.h>
+     #include <sys/socket.h>
+     #include <sys/uio.h>
+#endif
 #include <fcntl.h>
 
 #include <pthread.h>
@@ -91,7 +96,11 @@ ssize_t send_body(request &req) {
     ssize_t n, sum = -1;
 
     do {
+#ifdef __linux__
         n = sendfile(req.sockfd, resp.fd, &resp.body_offset, resp.body_length);
+#elif __APPLE__
+        n = 0;
+#endif
         if (n >= 0) {
             if (sum == -1) sum = n;
             else sum += n;
@@ -167,7 +176,6 @@ int build_resp(request& req) {
  * 	other failure
  */
 int process_request(request& req) {
-    response& resp = req.resp;
     bool stop = true;
     enum state old_state;
     do {
