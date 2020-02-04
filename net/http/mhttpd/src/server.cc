@@ -20,30 +20,38 @@
  *
  */
 
-#include <signal.h>
+#include <csignal>
 
 #include "server.h"
 #include "processor.h"
 #include "process_request.h"
 
-server::server(configuration& config) : socket(config.addr()),state (SVR_RUNNING),config(config) {
-    for (size_t i = 0; i < config.concurrency(); ++i)
-        m_workers.emplace_back(processor(std::string("worker-") + std::to_string(i), *this));
+server::server(configuration& config)
+    :
+    config(config),
+    socket(config.addr()),
+    m_state(state::RUNNING) {
+    syslog(LOG_DEBUG, "[server] worker: %ld", config.concurrency());
+    //    for (size_t i = 0; i < config.concurrency(); ++i)
+    for (size_t i = 0; i < 1; ++i) {
+        m_processors.emplace_back(i, *this);
+        m_workers.emplace_back(std::ref(m_processors.back()));
+    }
 }
 
 server::~server() {
     syslog(LOG_INFO, "[server] stopping");
-    state = SVR_STOPPING_LISTENER;
-    state = SVR_STOPPING_WORKER;
+    m_state = state::STOPPING_LISTENER;
+    m_state = state::STOPPING_WORKER;
     std::for_each(m_workers.begin(), m_workers.end(), std::mem_fn(&std::thread::join));
-    state = SVR_STOPPED;
+    m_state = state::STOPPED;
     syslog(LOG_INFO, "[server] stopped");
 }
 
 void server::serve() {
     sigset_t sigset;
-    siginfo_t siginfo;
 #ifdef __linux__
+    siginfo_t siginfo;
     struct timespec tmo = config.signal_timeout();
 #endif
     { // blocking all signals
@@ -72,8 +80,8 @@ void server::serve() {
                 break;
             }
             //dispatch_signal(siginfo);
-            syslog(LOG_INFO, "[signal]: %d", siginfo.si_signo);
-            if (siginfo.si_signo == SIGINT) {
+            syslog(LOG_INFO, "[signal]: %d", signo);
+            if (signo == SIGINT || signo == SIGTERM) {
                 syslog(LOG_INFO, "[interrupted] -> stopping");
                 break;
             }

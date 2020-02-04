@@ -3,14 +3,17 @@
 
 #include <unordered_map>
 #include <string>
-#include <unistd.h>
-#include <pthread.h>
-#include <semaphore.h>
 #include <array>
 #include <vector>
 #include <mutex>
 #include <sstream>
 #include <iostream>
+
+#include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <arpa/inet.h>
+#include "helper.h"
 
 enum method { HEAD, GET, POST };
 
@@ -53,7 +56,7 @@ struct response {
 };
 
 struct request {
-    std::string addr;
+    struct sockaddr_in addr;
     int sockfd;
     char raw[REQMAXLEN];
     size_t offset;
@@ -92,6 +95,11 @@ struct request {
     void header(const std::string& name, const std::string& value) {}
     std::string header(const std::string& name) const { return ""; }
     void freeze() {
+    }
+    std::string repr() {
+        return ReprHelper(this)
+            .with("sockfd", sockfd)
+            .str();
     }
 };
 
@@ -135,5 +143,15 @@ private:
     std::mutex m_mutex;
     std::vector<T> m_store;
 };
+
+int process_request(request& req);
+
+ssize_t read_request(request& req);
+ssize_t read_request_header(request& req);
+ssize_t read_request_body(request& req);
+
+ssize_t send_response(request& req);
+ssize_t send_response_header(request& req);
+ssize_t send_response_body(request& req);
 
 #endif//REQUEST_POOL_H

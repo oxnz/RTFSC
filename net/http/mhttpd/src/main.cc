@@ -1,13 +1,13 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cerrno>
+
 #include <unistd.h>
-#include <errno.h>
 
 #include <process_request.h>
 #include <server.h>
 
-#define NREQMAX 1024
 
 //void dispatch_signal(int signo, siginfo_t *info, void *context);
 
@@ -21,7 +21,7 @@ void help(std::ostream& os, const char* name) {
        << "\t-h\tshow this help message\n"
        << "\t-p\tport\n"
        << "\t-v\tprint prograrm verrsion\n"
-          ;
+        ;
 }
 
 void version(std::ostream& os, const char* name) {
@@ -52,12 +52,11 @@ int main(int argc, char *argv[]) {
     }
 
     try {
-        /*
-                */
         configuration config;
-        struct server server(config);
+        server server(config);
         server.serve();
     } catch (std::exception& e) {
+        throw e;
         std::cerr << "exception: " << e.what() << std::endl;
         syslog(LOG_ERR, "[exception]: %s", e.what());
         return -1;

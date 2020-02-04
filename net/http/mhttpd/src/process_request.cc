@@ -1,22 +1,18 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <errno.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cerrno>
 
 #include <unistd.h>
-
-#include <err.h>
-
 #include <netinet/tcp.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifdef __linux__
-    #include <sys/sendfile.h>
+#include <sys/sendfile.h>
 #elif __APPLE__
-    #include <sys/types.h>
-     #include <sys/socket.h>
-     #include <sys/uio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
 #endif
 #include <fcntl.h>
 
@@ -31,7 +27,7 @@ ssize_t read_request(request &req) {
     ssize_t n;
     ssize_t sum = -1;
     if (req.offset == REQMAXLEN) {
-        warn("request too large");
+        syslog(LOG_ERR, "request too large");
         req.state = CONN_ABORTED;
         return -1;
     }
@@ -136,7 +132,7 @@ int build_resp(request& req) {
         resp.reason = "OK";
         struct stat st;
         if (fstat(resp.fd, &st) < 0) {
-            warn("fstat");
+            syslog(LOG_ERR, "fstat: %s", strerror(errno));
             resp.code = 500;
             resp.reason = "Internal Error";
             close(resp.fd);

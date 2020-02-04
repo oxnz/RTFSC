@@ -34,74 +34,81 @@
 #include <sys/time.h>
 #endif
 
-struct event {
-    size_t data;
-    bool readable;
-    bool writable;
-    bool eof;
-    bool error;
+    enum event_flag {
+        EF_READABLE = 1<<0,
+        EF_WRITABLE = 1<<1,
+        EF_ERROR = 1<<2,
+        EF_EOF = 1 << 3,
+        };
+
+class event : kevent {
+public:
+    bool readable() const {
+        return filter == EVFILT_READ;
+    }
+    bool writable() const {
+        return filter == EVFILT_WRITE;
+    }
+    bool error() const {
+        return flags & EV_ERROR;
+    }
+    bool eof() const {
+        return flags & EV_EOF;
+    }
+    int fd() const {
+        return ident;
+    }
+    std::uintptr_t ptr() const {
+        return reinterpret_cast<std::uintptr_t>(udata);
+    }
+    std::string repr() const {
+        std::stringstream ss;
+        ss << "event<" << this
+           << ">[" << "fd=" << ident << ","
+           << "flags=" << (readable() ? "r" : "-")
+           << (writable() ? "w" : "-")
+           << (error()? "e" : "-")
+           << (eof()? "f" : "-")
+           << "]";
+        return ss.str();
+    }
 };
 
-struct event_ctx {
-    event_ctx();
-    ~event_ctx();
-    int fd;
-};
-
-struct event_loop {
+class event_loop {
+public:
     event_loop(size_t n, const struct timespec& interval);
-    virtual ~event_loop();
-    void add_event(const event& ev);
-    void del_event(const event& ev);
-    void operator()(std::function<bool(const struct event& ev)>& fn);
-#ifdef __linux__
+    event_loop(const event_loop&) = delete;
+    event_loop(event_loop&&) = default;
+    event_loop& operator=(const event_loop&) = delete;
+    ~event_loop();
 
-#elif __APPLE__
-    struct kevent* m_changelist;
-    struct kevent* m_eventlist;
+    void event(const event& ev);
+    void operator()(int fd, size_t flags, size_t data);
+    template<typename Fn>
+    void operator()(Fn& fn) {
+        m_interval.tv_sec = 2;
+        int n = kevent(m_fd, (struct kevent*)m_changes, size, (struct kevent*)m_events, capacity, &m_interval);
+        size = 0;
+        if (-1 == n) throw std::runtime_error(strerror(errno));
+        for (int i = 0; i < n; ++i) {
+            auto& ev = m_events[i];
+            syslog(LOG_DEBUG, "[event_loop] %s", ev.repr().c_str());
+            fn(ev);
+        }
+    }
+    bool full() const { return size >= capacity; }
+private:
+#ifdef __APPLE__
+    class event* m_changes;
+    class event* m_events;
     size_t size;
+    size_t capacity;
     struct timespec m_interval;
-    struct event_ctx m_ctx;
+#elif __linux__
+    m_events(new struct epoll_event[capacity]),
 #endif
+    int m_fd;
 };
-
-#ifdef __linux__
-#elif __APPLE__
-
-event_ctx::event_ctx() : fd(kqueue()) {
-
-}
-
-event_ctx::~event_ctx() {
-    close(fd);
-}
-
-event_loop::event_loop(size_t n, const struct timespec& interval) : m_changelist(new struct kevent[n]), m_eventlist(new struct kevent[n]), size(n), m_interval(interval) {
-}
-
-event_loop::~event_loop() {
-    delete[] m_changelist;
-    delete[] m_eventlist;
-}
-
-void event_loop::add_event(const event& ev) {
-    struct kevent& kev = m_eventlist[ev.data];
-    kev.flags |= EV_ENABLE;
-}
-
-void event_loop::del_event(const event &ev) {
-    struct kevent& kev = m_eventlist[ev.data];
-    kev.flags |= EV_DISABLE;
-}
-
-void event_loop::operator()(std::function<bool(const struct event& ev)>& fn) {
-    int n = kevent(m_ctx.fd, m_changelist, size, m_eventlist, size, &m_interval);
-    if (-1 == n) throw std::runtime_error(strerror(errno));
-    struct event ev;
-    for (int i = 0; i < n; ++i) fn(ev);
-}
-
-#endif
 
 #endif//_EVENT_H_
 
