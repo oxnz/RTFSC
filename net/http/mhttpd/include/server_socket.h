@@ -26,9 +26,10 @@
 #include <arpa/inet.h>
 
 struct server_socket {
-    int sockfd;
     server_socket(const struct sockaddr_in& sockaddr);
     ~server_socket();
+    int sockfd;
+    const struct sockaddr_in& addr;
 };
 
 #endif//_SERVER_SOCKET_H_

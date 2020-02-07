@@ -23,41 +23,29 @@
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
-#include <exception>
-//#include <error.h>
-#include <errno.h>
-#include <syslog.h>
-
 #include "config.h"
-#include "helper.h"
-#include "logger.h"
+#include "processor.h"
 #include "server_socket.h"
-#include "process_request.h"
-
-#define TCP_SERVICE_PORT 8000
-#define NWORKER 2
-#define NEVENT 128
-#define NEVTMO 1000
-
-enum server_status {
-    SVR_RUNNING,
-    SVR_PAUSED,
-    SVR_STOPPING_LISTENER,
-    SVR_STOPPING_WORKER,
-    SVR_STOPPED,
-};
 
 struct server {
-    server_socket socket;
-    enum server_status state;
 
     server(configuration& config);
     ~server();
 
     void serve();
+    bool running() const {return m_state == state::RUNNING;}
     const configuration& config;
+    server_socket socket;
 private:
+    enum class state {
+        RUNNING,
+        PAUSED,
+        STOPPING_LISTENER,
+        STOPPING_WORKER,
+        STOPPED,
+    } m_state;
     std::mutex m_state_mutex;
+    std::vector<processor> m_processors;
     std::vector<std::thread> m_workers;
 };
 
