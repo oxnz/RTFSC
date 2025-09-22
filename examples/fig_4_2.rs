@@ -19,7 +19,13 @@ fn main() -> Result<(), ExitCode> {
             continue;
         }
         let stat = unsafe { stat.assume_init() };
-        print!("dev={}/{} rdev={}/{}", libc::major(stat.st_dev), libc::minor(stat.st_dev), libc::major(stat.st_rdev), libc::minor(stat.st_rdev));
+        print!(
+            "dev={}/{} rdev={}/{}",
+            libc::major(stat.st_dev),
+            libc::minor(stat.st_dev),
+            libc::major(stat.st_rdev),
+            libc::minor(stat.st_rdev)
+        );
         match stat.st_mode & libc::S_IFMT {
             libc::S_IFBLK => {
                 print!("b");
