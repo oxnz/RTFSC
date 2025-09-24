@@ -1,5 +1,5 @@
 use std::{
-    ffi::{CStr, CString, c_void},
+    ffi::{CString, c_void},
     path::PathBuf,
     process::ExitCode,
     str::FromStr,
@@ -10,6 +10,7 @@ use reqwest::Url;
 
 #[tokio::main]
 async fn main() -> Result<(), ExitCode> {
+    let chunk_size = 4 * 1024 * 1024;
     let argv = std::env::args().collect::<Vec<_>>();
     let (uri, path) = match argv.len() {
         2 => {
@@ -63,16 +64,35 @@ async fn main() -> Result<(), ExitCode> {
             libc::S_IRUSR | libc::S_IWUSR | libc::S_IRGRP,
         );
         if fd < 0 {
-            tracing::error!("failed to open");
+            tracing::error!("failed to open: {:?}", std::io::Error::last_os_error());
             return Err(ExitCode::FAILURE);
         }
         if libc::fallocate(fd, 0, 0, size as i64) < 0 {
-            tracing::error!("fallocate");
+            tracing::error!("fallocate: {:?}", std::io::Error::last_os_error());
             return Err(ExitCode::FAILURE);
+        }
+        if libc::fsetxattr(
+            fd,
+            "mosaic.uri\0".as_ptr(),
+            path.as_ptr() as *const c_void,
+            path.count_bytes(),
+            0,
+        ) < 0
+        {
+            tracing::warn!("fsetxattr: {:?}", std::io::Error::last_os_error());
+        }
+        if libc::fsetxattr(
+            fd,
+            "mosaic.chunk_size\0".as_ptr(),
+            std::ptr::addr_of!(chunk_size) as *const c_void,
+            size_of::<i64>(),
+            0,
+        ) < 0
+        {
+            tracing::warn!("fsetxattr: {:?}", std::io::Error::last_os_error());
         }
         fd
     };
-    let chunk_size = 4 * 1024 * 1024;
     stream::iter((0..size).step_by(chunk_size).map(|offset| {
         (
             offset,
