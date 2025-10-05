@@ -1,5 +1,6 @@
 use std::{ffi::CString, process::ExitCode, str::FromStr};
 
+#[cfg(target_os = "linux")]
 fn main() -> Result<(), ExitCode> {
     let argv = std::env::args().collect::<Vec<_>>();
     if argv.len() != 2 {
@@ -34,4 +35,10 @@ fn main() -> Result<(), ExitCode> {
     // code to map the file and access the contents of the resulting mapping omitted
 
     Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() -> Result<(), ExitCode> {
+    eprintln!("memfd_create is only supported on Linux.");
+    Err(ExitCode::FAILURE)
 }
