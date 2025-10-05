@@ -8,6 +8,6 @@ libc = "0.2.175"
 tempfile = "3.22.0"
 
 [workspace]
-members = [
+members = [ "acorn",
     "mosaic",
 ]

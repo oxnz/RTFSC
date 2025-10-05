@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 
 fn main() {
-    let mut iter = PwIter::default();
+    let iter = PwIter::default();
     for item in iter {
         println!("{item:?}");
     }
