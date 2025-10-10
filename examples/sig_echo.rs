@@ -1,5 +1,6 @@
 use std::{ffi::c_void, mem::MaybeUninit, process::ExitCode};
 
+#[cfg(target_os = "linux")]
 fn main() -> Result<(), ExitCode> {
     let sfd = unsafe {
         let mut mask: MaybeUninit<libc::sigset_t> = MaybeUninit::uninit();
@@ -89,4 +90,9 @@ fn main() -> Result<(), ExitCode> {
     }
 
     Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    panic!("unsupported");
 }
