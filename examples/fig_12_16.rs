@@ -24,7 +24,9 @@ fn main() {
                     mutex_ptr.lock();
                     (quitflag_ptr as *const bool as *mut bool).write(true);
                     mutex_ptr.unlock();
-                    libc::pthread_cond_signal(cond_ptr as *const libc::pthread_cond_t as *mut libc::pthread_cond_t);
+                    libc::pthread_cond_signal(
+                        cond_ptr as *const libc::pthread_cond_t as *mut libc::pthread_cond_t,
+                    );
                     break;
                 },
                 _ => {
