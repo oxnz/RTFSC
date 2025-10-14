@@ -39,26 +39,35 @@ impl Flock {
         Self::new(libc::F_UNLCK, whence, len)
     }
 
-    pub fn set(&self, fd: i32) -> i32 {
-        unsafe { libc::fcntl(fd, libc::F_SETLK, &self.store) }
+    pub fn set(&self, fd: i32) -> std::io::Result<()> {
+        if -1 == unsafe { libc::fcntl(fd, libc::F_SETLK, &self.store) } {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
     }
 
-    pub fn set_wait(&self, fd: i32) -> i32 {
-        unsafe { libc::fcntl(fd, libc::F_SETLKW, &self.store) }
+    pub fn set_wait(&self, fd: i32) -> std::io::Result<()> {
+        if -1 == unsafe { libc::fcntl(fd, libc::F_SETLKW, &self.store) } {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
     }
 
-    pub fn test(&mut self, fd: i32) -> i32 {
-        let r = unsafe { libc::fcntl(fd, libc::F_GETLK, &mut self.store) };
-        if r < 0 {
-            panic!("fcntl");
+    pub fn test(&mut self, fd: i32) -> std::io::Result<i32> {
+        if -1 == unsafe { libc::fcntl(fd, libc::F_GETLK, &mut self.store) } {
+            Err(std::io::Error::last_os_error())
+        } else {
+            if self.store.l_type == libc::F_UNLCK {
+                Ok(0)
+            } else {
+                Ok(self.store.l_pid)
+            }
         }
-        if self.store.l_type == libc::F_UNLCK {
-            return 0;
-        }
-        return self.store.l_pid;
     }
 
     pub fn is_lockable(&mut self, fd: i32) -> bool {
-        self.test(fd) == 0
+        self.test(fd).map(|i| i == 0).unwrap_or_default()
     }
 }

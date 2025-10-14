@@ -1,3 +1,5 @@
+use rtfsc::file_op::{clr_fl, set_fl};
+
 fn main() {
     let mut buf = [0; 500000];
     let fd = libc::STDOUT_FILENO;
@@ -15,22 +17,4 @@ fn main() {
         }
     }
     clr_fl(fd, libc::O_NONBLOCK);
-}
-
-fn set_fl(fd: libc::c_int, flags: libc::c_int) {
-    unsafe {
-        let mut v = libc::fcntl(fd, libc::F_GETFL);
-        v |= flags;
-        let r = libc::fcntl(fd, libc::F_SETFL, &v);
-        assert_eq!(r, 0);
-    }
-}
-
-fn clr_fl(fd: libc::c_int, flags: libc::c_int) {
-    unsafe {
-        let mut v = libc::fcntl(fd, libc::F_GETFL);
-        v ^= flags;
-        let r = libc::fcntl(fd, libc::F_SETFL, &v);
-        assert_eq!(r, 0);
-    }
 }
