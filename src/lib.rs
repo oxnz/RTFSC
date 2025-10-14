@@ -4,7 +4,6 @@ pub mod file_op;
 pub mod flock;
 pub mod signal;
 
-
 pub fn mmap(
     addr: *mut c_void,
     len: usize,
