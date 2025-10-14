@@ -1,6 +1,11 @@
-use std::{io::Read, process::ExitCode};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    os::fd::FromRawFd,
+    process::ExitCode,
+};
 
-use libc::{c_char, fork};
+use rtfsc::{execvp, waitpid};
 
 fn main() -> Result<(), ExitCode> {
     let argv = std::env::args().collect::<Vec<_>>();
@@ -13,7 +18,7 @@ fn main() -> Result<(), ExitCode> {
 
     unsafe { libc::pipe(fds.as_mut_ptr()) };
 
-    let pid = unsafe { fork() };
+    let pid = unsafe { libc::fork() };
 
     if pid < 0 {
         eprintln!("fork");
@@ -22,53 +27,32 @@ fn main() -> Result<(), ExitCode> {
         // parent
         unsafe {
             libc::close(fds[0]);
-            let fd = libc::open(argv[1].as_ptr() as *const _, libc::O_RDONLY);
-            if fd < 0 {
-                libc::perror("open\0".as_ptr() as *const _);
-                return Err(ExitCode::FAILURE);
-            }
-            let mut file = std::fs::File::open(&argv[1]).unwrap();
-            let mut buf = [0; 10];
+
+            let mut in_f = std::fs::File::open(&argv[1]).unwrap();
+            let mut out_f = File::from_raw_fd(fds[1]);
+            let mut buf = [0; 1024];
             loop {
-                match file.read(&mut buf[..]) {
-                    Ok(n) => {
-                        if n == 0 {
-                            break;
-                        }
-                        if libc::write(fds[1], buf.as_ptr() as *const _, n) < 0 {
-                            libc::perror("write\0".as_ptr() as *const _);
-                            return Err(ExitCode::FAILURE);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("read: {e:?}");
-                        return Err(ExitCode::FAILURE);
-                    }
+                let n = in_f.read(&mut buf).unwrap();
+                if n == 0 {
+                    break;
                 }
+                out_f.write(&buf[..n]).unwrap();
             }
-            libc::close(fds[1]);
-            if libc::waitpid(pid, std::ptr::null_mut(), 0) < 0 {
-                libc::perror("waitpid\0".as_ptr() as *const _);
-                return Err(ExitCode::FAILURE);
-            }
+            drop(out_f);
+            waitpid(pid, 0).unwrap();
         }
     } else {
         // child
         unsafe {
             libc::close(fds[1]);
-            if libc::STDIN_FILENO != libc::dup2(fds[0], libc::STDIN_FILENO) {
-                libc::perror("dup2\0".as_ptr() as *const _);
-                return Err(ExitCode::FAILURE);
+            if fds[0] != libc::STDIN_FILENO {
+                if libc::STDIN_FILENO != libc::dup2(fds[0], libc::STDIN_FILENO) {
+                    libc::perror("dup2\0".as_ptr() as *const _);
+                    return Err(ExitCode::FAILURE);
+                }
+                libc::close(fds[0]);
             }
-            if libc::execl(
-                "/usr/bin/more\0".as_ptr() as *const _,
-                "more\0".as_ptr() as *const _,
-                std::ptr::null() as *const c_char,
-            ) < 0
-            {
-                libc::perror("execl\0".as_ptr() as *const _);
-                return Err(ExitCode::FAILURE);
-            }
+            execvp("more", &["more"]).unwrap();
         }
     }
 
