@@ -1,5 +1,6 @@
 use std::{
     ffi::{CString, c_void},
+    os::fd::AsRawFd,
     path::PathBuf,
     process::ExitCode,
     str::FromStr,
@@ -20,15 +21,9 @@ async fn main() -> Result<(), ExitCode> {
                 .file_name()
                 .and_then(|s| s.to_str())
                 .expect("missing filename");
-            (
-                uri.to_string(),
-                CString::from_str(name).expect("invalid path"),
-            )
+            (uri.to_string(), name.to_string())
         }
-        3 => (
-            argv[1].to_string(),
-            CString::from_str(&argv[2]).expect("invalid path"),
-        ),
+        3 => (argv[1].to_string(), argv[2].to_string()),
         _ => {
             eprintln!("usage: {} <uri> [pathname]", argv[0]);
             return Err(ExitCode::FAILURE);
@@ -57,20 +52,15 @@ async fn main() -> Result<(), ExitCode> {
         .parse()
         .unwrap();
     tracing::info!("content-length: {size}");
-    let fd = unsafe {
-        let fd = libc::open(
-            path.as_ptr(),
-            libc::O_CREAT | libc::O_WRONLY,
-            libc::S_IRUSR | libc::S_IWUSR | libc::S_IRGRP,
-        );
-        if fd < 0 {
-            tracing::error!("failed to open: {:?}", std::io::Error::last_os_error());
-            return Err(ExitCode::FAILURE);
-        }
-        if libc::fallocate(fd, 0, 0, size as i64) < 0 {
-            tracing::error!("fallocate: {:?}", std::io::Error::last_os_error());
-            return Err(ExitCode::FAILURE);
-        }
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(path)
+        .expect("open");
+    f.set_len(size as u64).unwrap();
+    let fd = f.as_raw_fd();
+    #[cfg(target_os = "linux")]
+    unsafe {
         if libc::fsetxattr(
             fd,
             "mosaic.uri\0".as_ptr(),
@@ -91,8 +81,7 @@ async fn main() -> Result<(), ExitCode> {
         {
             tracing::warn!("fsetxattr: {:?}", std::io::Error::last_os_error());
         }
-        fd
-    };
+    }
     stream::iter((0..size).step_by(chunk_size).map(|offset| {
         (
             offset,
