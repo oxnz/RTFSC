@@ -47,7 +47,7 @@ fn main() -> Result<(), ExitCode> {
             libc::close(fds[1]);
             if fds[0] != libc::STDIN_FILENO {
                 if libc::STDIN_FILENO != libc::dup2(fds[0], libc::STDIN_FILENO) {
-                    libc::perror("dup2\0".as_ptr() as *const _);
+                    libc::perror(c"dup2".as_ptr());
                     return Err(ExitCode::FAILURE);
                 }
                 libc::close(fds[0]);

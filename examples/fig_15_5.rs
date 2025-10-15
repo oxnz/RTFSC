@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, Write},
     os::fd::FromRawFd,
     process::ExitCode,
 };
@@ -9,7 +9,7 @@ use std::{
 fn main() -> Result<(), ExitCode> {
     let mut fds = [0, 0];
     if unsafe { libc::pipe(fds.as_mut_ptr()) } < 0 {
-        unsafe { libc::perror("pipe".as_ptr() as *const _) };
+        unsafe { libc::perror(c"pipe".as_ptr()) };
         return Err(ExitCode::FAILURE);
     }
 
@@ -17,7 +17,7 @@ fn main() -> Result<(), ExitCode> {
     let msg = "hello world";
     if pid < 0 {
         unsafe {
-            libc::perror("fork".as_ptr() as *const _);
+            libc::perror(c"fork".as_ptr());
         }
         return Err(ExitCode::FAILURE);
     } else if pid > 0 {

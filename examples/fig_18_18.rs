@@ -4,7 +4,7 @@ fn getpass(prompt: &str) -> String {
     let max_pass_len = 8;
     let mut buf = Vec::new();
     // libc::ctermid();
-    let fd = unsafe { libc::open("/dev/tty\0".as_ptr() as *const _, libc::O_RDWR) };
+    let fd = unsafe { libc::open(c"/dev/tty".as_ptr() as *const _, libc::O_RDWR) };
     assert!(fd >= 0);
 
     let mut sigset = MaybeUninit::uninit();
@@ -36,7 +36,7 @@ fn getpass(prompt: &str) -> String {
             }
         }
         buf.push(b'\0'); // null terminate
-        libc::write(fd, b"\n\0".as_ptr() as *const c_void, 1); // echo a newline
+        libc::write(fd, c"\n".as_ptr().cast(), 1); // echo a newline
 
         libc::tcsetattr(fd, libc::TCSAFLUSH, &orig_termios); // restore TTY state
         libc::sigprocmask(
