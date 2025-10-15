@@ -1,6 +1,5 @@
 use std::{ffi::CStr, mem::MaybeUninit};
 
-
 pub fn set_fl(fd: libc::c_int, flags: libc::c_int) {
     unsafe {
         let mut v = libc::fcntl(fd, libc::F_GETFL);
