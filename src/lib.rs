@@ -6,6 +6,8 @@ use std::{
 
 pub mod file_op;
 pub mod flock;
+pub mod group;
+pub mod passwd;
 pub mod signal;
 
 pub fn mmap(
