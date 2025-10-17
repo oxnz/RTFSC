@@ -1,6 +1,16 @@
 use dnsd::server;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> std::io::Result<()> {
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .init();
     server::serve()?;
     Ok(())
 }

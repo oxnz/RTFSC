@@ -3,6 +3,7 @@ use std::net::UdpSocket;
 use crate::{SerDe, dns::message::Message};
 
 fn process(request: Message) -> std::io::Result<Message> {
+    tracing::debug!("request: {request:?}");
     Ok(request)
 }
 
