@@ -2,16 +2,16 @@ use std::io::{Read, Write};
 
 use crate::{
     SerDe,
-    dns::{header::Header, question::Question, record::ResourceRecord},
+    dns::{Header, Question, ResourceRecord},
 };
 
 #[derive(Debug)]
-pub(crate) struct Message {
-    pub(crate) header: Header,
-    pub(crate) questions: Vec<Question>,
-    answer_resource_records: Vec<ResourceRecord>,
-    authority_resource_records: Vec<u8>,
-    pub(crate) additional_resource_records: Vec<u8>,
+pub struct Message {
+    pub header: Header,
+    pub questions: Vec<Question>,
+    pub answer_resource_records: Vec<ResourceRecord>,
+    pub authority_resource_records: Vec<u8>,
+    pub additional_resource_records: Vec<u8>,
 }
 
 impl Message {

@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-mod dns;
+pub mod dns;
 pub mod server;
 
 pub trait SerDe {

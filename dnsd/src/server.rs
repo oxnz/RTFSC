@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     SerDe,
-    dns::{message::Message, record::ResourceRecord},
+    dns::{Message, ResourceRecord, ResourceRecordClass, ResourceRecordType},
 };
 
 fn process(request: Message) -> std::io::Result<Message> {
@@ -20,8 +20,8 @@ fn process(request: Message) -> std::io::Result<Message> {
     let addr = Ipv4Addr::new(10, 11, 12, 13);
     let resource_record = ResourceRecord::new(
         name,
-        crate::dns::record::ResourceRecordType::A,
-        crate::dns::record::ResourceRecordClass::IN,
+        ResourceRecordType::A,
+        ResourceRecordClass::IN,
         Duration::from_secs(127),
         addr.to_bits().to_be_bytes().to_vec(),
     );
@@ -33,6 +33,7 @@ fn process(request: Message) -> std::io::Result<Message> {
         vec![],
         additional_resource_records,
     );
+    tracing::debug!("response: {response:x?}");
     Ok(response)
 }
 

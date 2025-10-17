@@ -2,13 +2,13 @@ use std::io::{Read, Write};
 
 use crate::{
     SerDe,
-    dns::record::{ResourceRecordClass, ResourceRecordName, ResourceRecordType},
+    dns::{ResourceRecordClass, ResourceRecordName, ResourceRecordType},
     read_u16_be, write_u16_be,
 };
 
 #[derive(Debug)]
-pub(crate) struct Question {
-    pub(crate) name: ResourceRecordName,
+pub struct Question {
+    pub name: ResourceRecordName,
     r#type: ResourceRecordType,
     class: ResourceRecordClass,
 }

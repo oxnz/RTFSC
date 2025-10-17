@@ -5,9 +5,22 @@ use std::{
 
 use crate::{SerDe, write_u16_be, write_u32_be};
 
+/**
+ * A 16-bit integer representing the resource record type to be returned. Common values include:
+ *
+ * 0x01: Host (A) record
+ * 0x02: Name server (NS) record
+ * 0x05: Alias (CNAME) record
+ * 0x0C (12): Reverse-lookup (PTR) record
+ * 0x0F (15): Mail exchange (MX) record
+ * 0x21 (33): Service (SRV) record
+ * 0xFB (251): Incremental zone transfer (IXFR) record
+ * 0xFC (252): Standard zone transfer (AXFR) record
+ * 0xFF (255): All records
+ */
 #[repr(u16)]
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ResourceRecordType {
+pub enum ResourceRecordType {
     A = 0x01,
     NS = 0x02,
     CNAME = 0x05,
@@ -21,13 +34,13 @@ pub(crate) enum ResourceRecordType {
 
 #[repr(u16)]
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ResourceRecordClass {
+pub enum ResourceRecordClass {
     // the Internet class
     IN = 0x0001,
 }
 
 #[derive(Debug)]
-pub(crate) struct ResourceRecord {
+pub struct ResourceRecord {
     name: ResourceRecordName,
     r#type: ResourceRecordType,
     class: ResourceRecordClass,
@@ -73,7 +86,7 @@ impl SerDe for ResourceRecord {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ResourceRecordName {
+pub struct ResourceRecordName {
     data: Vec<Vec<u8>>,
 }
 
