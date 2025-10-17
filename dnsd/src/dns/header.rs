@@ -103,6 +103,11 @@ fn test_serialize() {
     let mut bin: [u8; 16] = [0; 16];
     let mut header = Header::deserialize(bin.as_slice()).unwrap();
     header.set_response();
+    assert_eq!(header.flags, 0x8000);
+    header.set_ra();
+    assert_eq!(header.flags, 0x8080);
+    header.set_rcode(ReturnCode::NotImplemented);
+    assert_eq!(header.flags, 0x8084);
     header.serialize(bin.as_mut_slice()).unwrap();
-    println!("{bin:x?}");
+    assert_eq!(bin[2], 0x80);
 }

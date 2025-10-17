@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{SerDe, write_u16_be, write_u32_be};
+use crate::{SerDe, read_u16_be, read_u32_be, write_u16_be, write_u32_be};
 
 /**
  * A 16-bit integer representing the resource record type to be returned. Common values include:
@@ -27,6 +27,7 @@ pub enum ResourceRecordType {
     PTR = 0x0C,
     MX = 0x0F,
     SRV = 0x21,
+    OPT = 0x29,
     IXFR = 0xFB,
     AXFR = 0xFC,
     All = 0xFF,
@@ -37,6 +38,7 @@ pub enum ResourceRecordType {
 pub enum ResourceRecordClass {
     // the Internet class
     IN = 0x0001,
+    xxx = 0x1000,
 }
 
 #[derive(Debug)]
@@ -77,11 +79,29 @@ impl SerDe for ResourceRecord {
         Ok(())
     }
 
-    fn deserialize<R: Read>(r: R) -> std::io::Result<Self>
+    fn deserialize<R: Read>(mut r: R) -> std::io::Result<Self>
     where
         Self: Sized,
     {
-        todo!()
+        let name = ResourceRecordName::deserialize(&mut r)?;
+        let r#type =
+            unsafe { std::mem::transmute::<u16, ResourceRecordType>(read_u16_be(&mut r)?) };
+        let class =
+            unsafe { std::mem::transmute::<u16, ResourceRecordClass>(read_u16_be(&mut r)?) };
+        let time_to_live = {
+            let seconds = read_u32_be(&mut r)?;
+            Duration::from_secs(seconds as u64)
+        };
+        let rdata_len = read_u16_be(&mut r)?;
+        let mut data = vec![0; rdata_len as usize];
+        r.read_exact(&mut data)?;
+        Ok(Self {
+            name,
+            r#type,
+            class,
+            time_to_live,
+            data,
+        })
     }
 }
 
