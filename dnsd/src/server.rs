@@ -1,10 +1,39 @@
-use std::net::UdpSocket;
+use std::{
+    net::{Ipv4Addr, UdpSocket},
+    time::Duration,
+};
 
-use crate::{SerDe, dns::message::Message};
+use crate::{
+    SerDe,
+    dns::{message::Message, record::ResourceRecord},
+};
 
 fn process(request: Message) -> std::io::Result<Message> {
-    tracing::debug!("request: {request:?}");
-    Ok(request)
+    tracing::debug!("request: {request:x?}");
+    let mut header = request.header;
+    header.set_response();
+    header.set_aa();
+    header.set_ra();
+    header.answer_resource_record_count = 1;
+    let questions = request.questions;
+    let name = questions[0].name.clone();
+    let addr = Ipv4Addr::new(10, 11, 12, 13);
+    let resource_record = ResourceRecord::new(
+        name,
+        crate::dns::record::ResourceRecordType::A,
+        crate::dns::record::ResourceRecordClass::IN,
+        Duration::from_secs(127),
+        addr.to_bits().to_be_bytes().to_vec(),
+    );
+    let additional_resource_records = request.additional_resource_records;
+    let response = Message::new(
+        header,
+        questions,
+        vec![resource_record],
+        vec![],
+        additional_resource_records,
+    );
+    Ok(response)
 }
 
 pub fn serve() -> std::io::Result<()> {

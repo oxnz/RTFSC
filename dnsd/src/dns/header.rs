@@ -11,10 +11,28 @@ pub(crate) struct Header {
      */
     transaction_id: u16,
     flags: u16,
-    question_resource_record_count: u16,
-    answer_resource_record_count: u16,
-    authority_resource_record_count: u16,
-    additional_resource_record_count: u16,
+    pub(crate) question_resource_record_count: u16,
+    pub(crate) answer_resource_record_count: u16,
+    pub(crate) authority_resource_record_count: u16,
+    pub(crate) additional_resource_record_count: u16,
+}
+
+impl Header {
+    pub fn set_request(&mut self) {
+        self.flags &= 0xEFFF;
+    }
+
+    pub fn set_response(&mut self) {
+        self.flags |= 0x8000;
+    }
+
+    pub fn set_aa(&mut self) {
+        self.flags |= 0x0400;
+    }
+
+    pub fn set_ra(&mut self) {
+        self.flags |= 0x0080;
+    }
 }
 
 impl SerDe for Header {
@@ -41,4 +59,13 @@ impl SerDe for Header {
             additional_resource_record_count: read_u16_be(&mut r)?,
         })
     }
+}
+
+#[test]
+fn test_serialize() {
+    let mut bin: [u8; 16] = [0; 16];
+    let mut header = Header::deserialize(bin.as_slice()).unwrap();
+    header.set_response();
+    header.serialize(bin.as_mut_slice()).unwrap();
+    println!("{bin:x?}");
 }

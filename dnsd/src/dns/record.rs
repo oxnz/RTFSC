@@ -1,21 +1,67 @@
-use std::io::{Read, Write};
+use std::{
+    io::{Read, Write},
+    time::Duration,
+};
 
-use crate::SerDe;
+use crate::{SerDe, write_u16_be, write_u32_be};
+
+#[repr(u16)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ResourceRecordType {
+    A = 0x01,
+    NS = 0x02,
+    CNAME = 0x05,
+    PTR = 0x0C,
+    MX = 0x0F,
+    SRV = 0x21,
+    IXFR = 0xFB,
+    AXFR = 0xFC,
+    All = 0xFF,
+}
+
+#[repr(u16)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ResourceRecordClass {
+    // the Internet class
+    IN = 0x0001,
+}
 
 #[derive(Debug)]
 pub(crate) struct ResourceRecord {
     name: ResourceRecordName,
-    r#type: u16,
-    class: u16,
-    time_to_live: u32,
-    data_len: u16,
+    r#type: ResourceRecordType,
+    class: ResourceRecordClass,
+    time_to_live: Duration,
     data: Vec<u8>,
+}
+
+impl ResourceRecord {
+    pub fn new(
+        name: ResourceRecordName,
+        r#type: ResourceRecordType,
+        class: ResourceRecordClass,
+        time_to_live: Duration,
+        data: Vec<u8>,
+    ) -> Self {
+        Self {
+            name,
+            r#type,
+            class,
+            time_to_live,
+            data,
+        }
+    }
 }
 
 impl SerDe for ResourceRecord {
     fn serialize<W: Write>(&self, mut w: W) -> std::io::Result<()> {
         self.name.serialize(&mut w)?;
-        todo!()
+        write_u16_be(&mut w, self.r#type as u16)?;
+        write_u16_be(&mut w, self.class as u16)?;
+        write_u32_be(&mut w, self.time_to_live.as_secs() as u32)?;
+        write_u16_be(&mut w, self.data.len() as u16)?;
+        w.write_all(&self.data)?;
+        Ok(())
     }
 
     fn deserialize<R: Read>(r: R) -> std::io::Result<Self>
@@ -26,7 +72,7 @@ impl SerDe for ResourceRecord {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ResourceRecordName {
     data: Vec<Vec<u8>>,
 }
