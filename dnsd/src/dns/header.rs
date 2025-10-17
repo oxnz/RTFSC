@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use crate::{SerDe, read_u16};
+use crate::{SerDe, read_u16_be, write_u16_be};
 
 #[derive(Debug)]
 pub(crate) struct Header {
@@ -19,12 +19,12 @@ pub(crate) struct Header {
 
 impl SerDe for Header {
     fn serialize<W: Write>(&self, mut w: W) -> std::io::Result<()> {
-        w.write_all(&self.transaction_id.to_be_bytes())?;
-        w.write_all(&self.flags.to_be_bytes())?;
-        w.write_all(&self.question_resource_record_count.to_be_bytes())?;
-        w.write_all(&self.answer_resource_record_count.to_be_bytes())?;
-        w.write_all(&self.authority_resource_record_count.to_be_bytes())?;
-        w.write_all(&self.additional_resource_record_count.to_be_bytes())?;
+        write_u16_be(&mut w, self.transaction_id)?;
+        write_u16_be(&mut w, self.flags)?;
+        write_u16_be(&mut w, self.question_resource_record_count)?;
+        write_u16_be(&mut w, self.answer_resource_record_count)?;
+        write_u16_be(&mut w, self.authority_resource_record_count)?;
+        write_u16_be(&mut w, self.additional_resource_record_count)?;
         Ok(())
     }
 
@@ -33,12 +33,12 @@ impl SerDe for Header {
         Self: Sized,
     {
         Ok(Self {
-            transaction_id: read_u16(&mut r)?,
-            flags: read_u16(&mut r)?,
-            question_resource_record_count: read_u16(&mut r)?,
-            answer_resource_record_count: read_u16(&mut r)?,
-            authority_resource_record_count: read_u16(&mut r)?,
-            additional_resource_record_count: read_u16(&mut r)?,
+            transaction_id: read_u16_be(&mut r)?,
+            flags: read_u16_be(&mut r)?,
+            question_resource_record_count: read_u16_be(&mut r)?,
+            answer_resource_record_count: read_u16_be(&mut r)?,
+            authority_resource_record_count: read_u16_be(&mut r)?,
+            additional_resource_record_count: read_u16_be(&mut r)?,
         })
     }
 }

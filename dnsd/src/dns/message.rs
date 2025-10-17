@@ -16,7 +16,11 @@ pub(crate) struct Message {
 
 impl SerDe for Message {
     fn serialize<W: Write>(&self, mut w: W) -> std::io::Result<()> {
-        todo!()
+        self.header.serialize(&mut w)?;
+        for q in &self.questions {
+            q.serialize(&mut w)?;
+        }
+        Ok(())
     }
 
     fn deserialize<R: Read>(mut r: R) -> std::io::Result<Self>

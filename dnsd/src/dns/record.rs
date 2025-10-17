@@ -32,8 +32,14 @@ pub(crate) struct ResourceRecordName {
 }
 
 impl SerDe for ResourceRecordName {
-    fn serialize<W: Write>(&self, w: W) -> std::io::Result<()> {
-        todo!()
+    fn serialize<W: Write>(&self, mut w: W) -> std::io::Result<()> {
+        for part in &self.data {
+            let len = part.len() as u8;
+            w.write_all(&len.to_le_bytes())?;
+            w.write_all(&part)?;
+        }
+        w.write_all(&(0u8.to_le_bytes()))?;
+        Ok(())
     }
 
     fn deserialize<R: Read>(mut r: R) -> std::io::Result<Self>
