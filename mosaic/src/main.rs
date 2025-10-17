@@ -1,10 +1,4 @@
-use std::{
-    ffi::{CString, c_void},
-    os::fd::AsRawFd,
-    path::PathBuf,
-    process::ExitCode,
-    str::FromStr,
-};
+use std::{ffi::c_void, os::fd::AsRawFd, path::PathBuf, process::ExitCode};
 
 use futures::{StreamExt, TryFutureExt, stream};
 use reqwest::Url;

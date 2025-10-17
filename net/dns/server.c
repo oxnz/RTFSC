@@ -42,7 +42,7 @@ typedef struct sockaddr * SA;
 
 struct req_header {
 	uint16_t ID;
-			uint8_t RD:1;
+                        uint8_t RD:1;
 			uint8_t TC:1;
 			uint8_t AA:1;
 			uint8_t Opcode:4;
@@ -151,10 +151,11 @@ static void phex(uint8_t *p, int len) {
 		else
 			buf[i%16] = '.';
 	}
-	putchar('\n');
+        putchar('\n');
 }
 
 int main(int argc, char *argv[]) {
+    fprintf(stdout, "argc = %d, argv[0]=%s\n", argc, argv[0]);
 	uint8_t req[REQMAXLEN], rsp[RSPMAXLEN];
 	int sockfd, n;
 	struct sockaddr_in server, client;
@@ -177,10 +178,11 @@ int main(int argc, char *argv[]) {
 		}
 		printf("request from [%s:%d]:\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 		phex(req, n);
-		n = process(req, n, rsp);
+                n = process(req, n, rsp);
 		phex(rsp, n);
 		printf("n = %d\n", n);
-		if ((n = sendto(sockfd, rsp, n, 0, (SA) &client, len)) != n)
+                int n_sent = sendto(sockfd, rsp, n, 0, (SA) &client, len);
+                if (n_sent != n)
 			err(1, "sendto");
 	}
 
