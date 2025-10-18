@@ -49,15 +49,15 @@ impl FromStr for Header {
 impl std::fmt::Display for Header {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Header::ContentType(s) => write!(f, "Content-Type: {}\r\n", s),
-            Header::ContentLength(n) => write!(f, "Content-Length: {n}\r\n"),
+            Header::ContentType(s) => write!(f, "Content-Type: {}", s),
+            Header::ContentLength(n) => write!(f, "Content-Length: {n}"),
             Header::Host(_) => todo!(),
             Header::UserAgent(_) => todo!(),
             Header::Accept(_) => todo!(),
             Header::Server(_) => todo!(),
             Header::Date(_) => todo!(),
             Header::CacheControl(_) => todo!(),
-            Header::Custom { name, value } => write!(f, "{}: {}\r\n", name, value),
+            Header::Custom { name, value } => write!(f, "{}: {}", name, value),
         }
     }
 }
