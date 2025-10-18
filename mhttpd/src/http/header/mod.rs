@@ -24,9 +24,15 @@ impl FromStr for Header {
     type Err = std::io::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.split_once(':') {
+        match s.split_once(": ") {
             Some((name, value)) => match name {
                 "Host" => Ok(Self::Host(value.to_string())),
+                "Content-Type" => Ok(Self::ContentType(value.to_string())),
+                "Content-Length" => {
+                    Ok(Self::ContentLength(value.parse().map_err(|e| {
+                        std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+                    })?))
+                }
                 _ => Ok(Self::Custom {
                     name: name.to_string(),
                     value: value.to_string(),

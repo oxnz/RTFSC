@@ -23,6 +23,26 @@ fn test_get() {
     eprintln!("stderr:\n{:?}", HexRepr(&stderr));
 }
 
+#[test]
+fn test_form() {
+    let output = std::process::Command::new("curl")
+        .args([
+            "-X",
+            "POST",
+            "-d",
+            "comment=hello",
+            "-v",
+            "--silent",
+            "127.0.0.1:8000",
+        ])
+        .output()
+        .unwrap();
+    let stdout = output.stdout;
+    let stderr = output.stderr;
+    println!("stdout:\n{:?}", HexRepr(&stdout));
+    eprintln!("stderr:\n{:?}", HexRepr(&stderr));
+}
+
 struct HexRepr<'a>(&'a [u8]);
 
 impl<'a> std::fmt::Debug for HexRepr<'a> {
