@@ -48,7 +48,7 @@ impl KQueue {
     ) -> std::io::Result<usize> {
         let timeout = timeout.map(|o| libc::timespec {
             tv_sec: o.as_secs().cast_signed(),
-            tv_nsec: o.as_nanos() as i64,
+            tv_nsec: o.subsec_nanos() as i64,
         });
         let timeout_ptr = timeout.as_ref().map(|o| o as *const _).unwrap_or_default();
         let n = unsafe {
@@ -119,7 +119,7 @@ pub struct Action(u16);
 
 impl Action {
     pub fn add() -> Self {
-        Self(libc::EV_ADD | libc::EV_ENABLE)
+        Self(libc::EV_ADD | libc::EV_CLEAR)
     }
 
     pub fn remove() -> Self {
