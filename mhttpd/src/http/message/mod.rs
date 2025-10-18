@@ -1,9 +1,9 @@
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, Write};
 
 use crate::http::{Header, Method, Protocol, StatusCode};
 
 pub trait SerDe {
-    fn read<R: Read>(r: &mut R) -> std::io::Result<Self>
+    fn read<R: BufRead>(r: &mut R) -> std::io::Result<Self>
     where
         Self: Sized;
     fn write<W: Write>(&self, w: &mut W) -> std::io::Result<()>;
@@ -46,17 +46,19 @@ impl Response {
 }
 
 impl SerDe for Request {
-    fn read<R: Read>(r: &mut R) -> std::io::Result<Self>
+    fn read<R: BufRead>(r: &mut R) -> std::io::Result<Self>
     where
         Self: Sized,
     {
-        let mut reader = BufReader::new(r);
         let mut line = Vec::with_capacity(8 * 1024);
-        reader.read_until(b'\n', &mut line)?;
-        if line.ends_with(b"\r\n") {
-            line.truncate(line.len() - 2);
+        let n = r.read_until(b'\n', &mut line)?;
+        if n == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "EAGAIN",
+            ));
         }
-        let request_line = str::from_utf8(&line)
+        let request_line = str::from_utf8(line.trim_ascii_end())
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let (method, target, protocol) = match request_line.split_once(' ') {
             Some((method, rest)) => match rest.rsplit_once(' ') {
@@ -67,22 +69,23 @@ impl SerDe for Request {
                 ),
                 None => todo!(),
             },
-            None => todo!(),
+            None => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "invalid request line",
+                ));
+            }
         };
         let mut headers = Vec::new();
         let mut content_length = 0;
         loop {
             line.clear();
-            reader.read_until(b'\n', &mut line)?;
-            if line.ends_with(b"\r\n") {
-                line.truncate(line.len() - 2);
-            }
-            if line.is_empty() {
+            r.read_until(b'\n', &mut line)?;
+            let s = str::from_utf8(&line.trim_ascii_end())
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            if s.is_empty() {
                 break;
             }
-            let s = str::from_utf8(&line)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-            tracing::debug!("header: {s}");
             let header: Header = s.parse()?;
             if let Header::ContentLength(n) = header {
                 content_length = n;
@@ -92,7 +95,7 @@ impl SerDe for Request {
         }
         let body = if content_length != 0 {
             let mut content = vec![0; content_length];
-            reader.read_exact(&mut content)?;
+            r.read_exact(&mut content)?;
             Some(content)
         } else {
             None
@@ -112,7 +115,7 @@ impl SerDe for Request {
 }
 
 impl SerDe for Response {
-    fn read<R: Read>(r: &mut R) -> std::io::Result<Self>
+    fn read<R: BufRead>(r: &mut R) -> std::io::Result<Self>
     where
         Self: Sized,
     {
@@ -135,10 +138,9 @@ impl SerDe for Response {
         for header in &self.headers {
             write!(w, "{}\r\n", header)?;
         }
+        w.write(b"\r\n")?;
         if let Some(body) = self.body.as_ref() {
             w.write_all(&body)?;
-        } else {
-            w.write(b"\r\n")?;
         }
         Ok(())
     }
@@ -156,18 +158,22 @@ fn test_request_read() {
 
 #[test]
 fn test_response_write() {
+    let body = b"it works!".to_vec();
     let response = Response::new(
         crate::http::Protocol::Http("1.1".to_string()),
         crate::http::StatusCode::Ok,
         None,
-        vec![Header::ContentType("text/plain".to_string())],
-        Some("it works!".as_bytes().to_vec()),
+        vec![
+            Header::ContentType("text/plain".to_string()),
+            Header::ContentLength(body.len()),
+        ],
+        Some(body),
     );
     let mut buf = Vec::new();
     response.write(&mut buf).unwrap();
     let s = String::from_utf8(buf).unwrap();
     assert_eq!(
         s,
-        "HTTP/1.1 200\r\nContent-Type: text/plain\r\n\r\nit works!"
+        "HTTP/1.1 200\r\nContent-Type: text/plain\r\nContent-Length: 9\r\n\r\nit works!"
     );
 }
