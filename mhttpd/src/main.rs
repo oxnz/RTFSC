@@ -6,7 +6,7 @@ fn main() -> std::io::Result<()> {
         .with_max_level(Level::DEBUG)
         .init();
     tracing::debug!("Hello, world!");
-    server::serve()?;
+    server::blocking::serve()?;
     tracing::debug!("bye");
     Ok(())
 }
