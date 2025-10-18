@@ -1,4 +1,4 @@
-use std::io::{BufRead, Write};
+use std::io::{BufRead, BufWriter, Write};
 
 use crate::http::{Header, Method, Protocol, StatusCode};
 
@@ -123,24 +123,25 @@ impl SerDe for Response {
     }
 
     fn write<W: Write>(&self, w: &mut W) -> std::io::Result<()> {
+        let mut stream = BufWriter::new(w);
         // status line
         if let Some(reason_phrase) = &self.reason_phrase {
             write!(
-                w,
+                stream,
                 "{} {} {}\r\n",
                 self.protocol, self.status_code, reason_phrase
             )?;
         } else {
-            write!(w, "{} {}\r\n", self.protocol, self.status_code)?;
+            write!(stream, "{} {}\r\n", self.protocol, self.status_code)?;
         }
 
         // headers
         for header in &self.headers {
-            write!(w, "{}\r\n", header)?;
+            write!(stream, "{}\r\n", header)?;
         }
-        w.write(b"\r\n")?;
+        stream.write(b"\r\n")?;
         if let Some(body) = self.body.as_ref() {
-            w.write_all(&body)?;
+            stream.write_all(&body)?;
         }
         Ok(())
     }
