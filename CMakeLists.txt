@@ -8,4 +8,6 @@ set(CMAKE_C_STANDARD 23)
 
 add_compile_options(-Wall -Wextra -Werror)
 
+add_subdirectory(par)
 add_subdirectory(net/dns)
+# add_subdirectory(net/http/mhttpd)
