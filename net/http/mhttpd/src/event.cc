@@ -28,7 +28,7 @@ void event_loop::operator()(int fd, size_t flags, size_t data) {
     syslog(LOG_DEBUG, "[event_loop] register fd: %d on flags: %ld with data: %lu", fd, flags, data);
     require(size + bitcnt(flags) <= capacity, std::runtime_error("event queue would overflow"));
     if (EF_READABLE & flags) EV_SET((struct kevent *)&m_changes[size++], fd, EVFILT_READ, EV_ADD, 0, 0, (void*)data);
-    if (EF_WRITABLE & flags) EV_SET((struct kevent *)&m_changes[size++], fd, EVFILT_READ, EV_ADD, 0, 0, (void*)data);
+    if (EF_WRITABLE & flags) EV_SET((struct kevent *)&m_changes[size++], fd, EVFILT_WRITE, EV_ADD, 0, 0, (void*)data);
 }
 
 #endif
