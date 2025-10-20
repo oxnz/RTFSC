@@ -7,8 +7,6 @@
 #define MHTTPD_VERSION_TWEAK 
 #define MHTTPD_VERSION "1.0.0"
 
-#include <functional>
-#include <stdexcept>
 #include <chrono>
 #include <cerrno>
 #include <cstring>
@@ -50,6 +48,7 @@ struct configuration {
     }
     void concurrency(size_t n) {
         if (n == 0) n = std::thread::hardware_concurrency();
+        if (n == 0) n = 1;
         m_concurrency = n;
     }
     size_t concurrency() const {
@@ -64,6 +63,7 @@ struct configuration {
     }
     void signal_timeout(std::chrono::milliseconds ms) {
         require(ms.count() > 0, "invalid signal_timeout (non-zero value required)");
+        m_signal_timeout = ms;
     }
     std::chrono::milliseconds signal_timeout() const {
         return m_signal_timeout;
