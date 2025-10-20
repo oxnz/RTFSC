@@ -23,6 +23,7 @@
 #ifndef _EVENT_H_
 #define _EVENT_H_
 
+#include <format>
 #include <unistd.h>
 #include "config.h"
 
@@ -62,15 +63,12 @@ public:
         return reinterpret_cast<std::uintptr_t>(udata);
     }
     std::string repr() const {
-        std::stringstream ss;
-        ss << "event<" << this
-           << ">[" << "fd=" << ident << ","
-           << "flags=" << (readable() ? "r" : "-")
-           << (writable() ? "w" : "-")
-           << (error()? "e" : "-")
-           << (eof()? "f" : "-")
-           << "]";
-        return ss.str();
+        return std::format("event<{}>[fd={}, flags={}{}{}{}]", static_cast<const void *>(this), ident,
+                           (readable() ? "r" : "-"),
+                           (writable() ? "w" : "-"),
+                           (error()? "e" : "-"),
+                           (eof()? "f" : "-")
+                           );
     }
 };
 
