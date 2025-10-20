@@ -27,8 +27,8 @@
 #include "processor.h"
 #include "server_socket.h"
 
-struct server {
-
+class server {
+public:
     server(configuration& config);
     ~server();
 
