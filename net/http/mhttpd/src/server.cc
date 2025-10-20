@@ -21,7 +21,8 @@
  */
 
 #include <csignal>
-
+#include <algorithm>
+#include <functional>
 #include "server.h"
 #include "processor.h"
 #include "process_request.h"
