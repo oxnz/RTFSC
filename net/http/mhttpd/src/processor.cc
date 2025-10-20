@@ -50,7 +50,7 @@ void processor::operator()() {
     while (m_server.running()) {
         syslog(LOG_DEBUG, "[%s] stat: free: %lu, capacity: %lu", m_name.c_str(), m_unused.size(), m_capacity);
         try {
-            sleep(2);
+            // sleep(2);
             m_evloop(*this);
         } catch (std::exception& ex) {
             syslog(LOG_ERR, "[%s] aborted: %s (%m)", m_name.c_str(), ex.what());

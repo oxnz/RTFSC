@@ -33,7 +33,7 @@ server::server(configuration& config)
     socket(config.addr()),
     m_state(state::RUNNING) {
     syslog(LOG_DEBUG, "[server] worker: %ld", config.concurrency());
-    //    for (size_t i = 0; i < config.concurrency(); ++i)
+    // for (size_t i = 0; i < config.concurrency(); ++i) {
     for (size_t i = 0; i < 1; ++i) {
         m_processors.emplace_back(i, *this);
         m_workers.emplace_back(std::ref(m_processors.back()));

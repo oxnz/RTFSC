@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <format>
 
 #include <unistd.h>
 #include <netinet/tcp.h>
@@ -62,7 +63,7 @@ ssize_t send_header(request &req) {
 
     do {
         n = write(req.sockfd, resp.header + resp.header_offset, resp.header_length);
-        syslog(LOG_DEBUG, "[%lx] send header %ld/%ld bytes", pthread_self(), n, resp.header_length);
+        syslog(LOG_DEBUG, "[processor] send header %ld/%ld bytes", n, resp.header_length);
         if (n >= 0) {
             if (sum == -1) sum = n;
             else sum += n;
@@ -95,7 +96,9 @@ ssize_t send_body(request &req) {
 #ifdef __linux__
         n = sendfile(req.sockfd, resp.fd, &resp.body_offset, resp.body_length);
 #elif __APPLE__
-        n = 0;
+        off_t len = resp.body_length;
+        n = sendfile(resp.fd, req.sockfd, 0, &len, NULL, 0);
+        n = len;
 #endif
         if (n >= 0) {
             if (sum == -1) sum = n;
@@ -116,14 +119,15 @@ ssize_t send_body(request &req) {
             }
         }
     } while (req.writable);
-    syslog(LOG_DEBUG, "[%lx] send body %ld sent/%ld offset/%ld remains", pthread_self(), n, resp.body_offset, resp.body_length);
+    syslog(LOG_DEBUG, "[processor] send body %ld sent/%lld offset/%ld remains", n, resp.body_offset, resp.body_length);
     return sum >= 0 ? sum : -1;
 }
 
 int build_resp(request& req) {
     response &resp = req.resp;
     resp.header_offset = 0;
-    const char *fpath = req.path().c_str();
+    std::string fpath_str = req.path();
+    const char *fpath = fpath_str.c_str();
     resp.fd = open(fpath, O_RDONLY | O_NONBLOCK);
     resp.content_type = "text/html";
     resp.charset = "utf-8";
@@ -153,13 +157,14 @@ int build_resp(request& req) {
         }
     }
     if (resp.code != 200) resp.body_length = 0;
-    int n = sprintf(resp.header, "HTTP/1.1 %d %s\r\n", resp.code, resp.reason.c_str());
-    n += sprintf(resp.header + n, "Server: mhttpd/0.1\r\n");
-    n += sprintf(resp.header + n, "Content-Type: %s; charset=%s\r\n", resp.content_type, resp.charset);
-    n += sprintf(resp.header + n, "Cache-Control: private, max-age=0, proxy-revalidate, no-store, no-cache, must-revalidate\r\n");
-    n += sprintf(resp.header + n, "Content-Length: %lu\r\n", resp.body_length);
-    n += sprintf(resp.header + n, "\r\n");
-    resp.header_length = n;
+    // status_line
+    auto it = std::format_to(resp.header, "HTTP/1.1 {} {}\r\n", resp.code, resp.reason);
+    it = std::format_to(it, "Server: mhttpd/0.1\r\n");
+    it = std::format_to(it, "Content-Type: {}; charset={}\r\n", resp.content_type, resp.charset);
+    it = std::format_to(it, "Cache-Control: private, max-age=0, proxy-revalidate, no-store, no-cache, must-revalidate\r\n");
+    it = std::format_to(it, "Content-Length: {}\r\n", resp.body_length);
+    it = std::format_to(it, "\r\n");
+    resp.header_length = std::distance(resp.header, it);
     req.state = SENDING_RESP_HEADER;
     // go through to send_header
     return 0;
@@ -175,7 +180,7 @@ int process_request(request& req) {
     bool stop = true;
     enum state old_state;
     do {
-        syslog(LOG_DEBUG, "[processor] processing");
+        syslog(LOG_DEBUG, "[processor] processing %d", req.state);
         old_state = req.state;
         switch (req.state) {
         case CONN_ESTABLISHED:
