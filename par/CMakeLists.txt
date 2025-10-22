@@ -5,4 +5,6 @@ add_executable(listing_3_9 listing_3_9.cc)
 add_executable(listing_3_13 listing_3_13.cc)
 add_executable(listing_4_9 listing_4_9.cc)
 add_executable(listing_5_1 listing_5_1.cc)
+add_executable(listing_5_2 listing_5_2.cc)
+add_executable(listing_5_4 listing_5_4.cc)
 
