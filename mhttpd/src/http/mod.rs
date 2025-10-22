@@ -3,6 +3,7 @@ mod message;
 mod method;
 mod protocol;
 mod status;
+pub mod v2;
 pub use header::Header;
 pub use message::{Request, Response, SerDe};
 pub use method::Method;
