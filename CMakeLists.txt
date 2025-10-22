@@ -10,4 +10,4 @@ add_compile_options(-Wall -Wextra -Werror)
 
 add_subdirectory(par)
 add_subdirectory(net/dns)
-# add_subdirectory(net/http/mhttpd)
+add_subdirectory(net/http/mhttpd)
