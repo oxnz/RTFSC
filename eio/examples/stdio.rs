@@ -16,7 +16,7 @@ fn main() -> std::io::Result<()> {
             Filter::new().write(),
         ),
     ];
-    q.update(&events)?;
+    q.register(&events)?;
     loop {
         match q.poll(&mut events, Some(Duration::from_secs(2))) {
             Ok(n) => {

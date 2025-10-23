@@ -12,7 +12,7 @@ fn test() {
         Action::add(),
         Filter::new().write(),
     )];
-    let r = q.update(&events);
+    let r = q.register(&events);
     assert!(r.is_ok());
     let n = q.poll(&mut events, None);
     assert_eq!(n.ok(), Some(1));

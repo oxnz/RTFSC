@@ -23,7 +23,7 @@ impl KQueue {
         }
     }
 
-    pub fn update(&mut self, events: &[KEvent]) -> std::io::Result<()> {
+    pub fn register(&mut self, events: &[KEvent]) -> std::io::Result<()> {
         let n = unsafe {
             libc::kevent(
                 self.fd,
@@ -161,7 +161,7 @@ fn test_register() {
         Filter::new().write(),
     );
     let mut events = vec![event];
-    let r = q.update(&events);
+    let r = q.register(&events);
     assert!(r.is_ok());
     let r = q.poll(&mut events, None);
     assert_eq!(r.ok(), Some(1));
