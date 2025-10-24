@@ -36,6 +36,16 @@ impl RequestBuilder {
         });
     }
 
+    pub fn extend_body(&mut self, data: &[u8]) {
+        self.body = match self.body.take() {
+            Some(mut body) => {
+                body.extend_from_slice(data);
+                Some(body)
+            }
+            None => Some(data.to_vec()),
+        }
+    }
+
     pub fn build(self) -> std::io::Result<Request> {
         Ok(Request::new(
             self.method.unwrap(),

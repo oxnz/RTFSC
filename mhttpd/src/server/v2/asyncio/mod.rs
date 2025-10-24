@@ -9,7 +9,7 @@ use tokio::{
 use crate::http::{
     Header, Request, RequestBuilder, Response,
     v2::{
-        flags,
+        FrameType, flags,
         transport::{Frame, Transport},
     },
 };
@@ -79,7 +79,7 @@ impl Server {
 #[derive(Debug)]
 pub struct Client {
     transport: Transport,
-    streams: HashMap<u32, Request>,
+    streams: HashMap<u32, RequestBuilder>,
 }
 
 impl From<TcpStream> for Client {
@@ -98,12 +98,25 @@ impl Client {
 
     pub async fn read_request(&mut self) -> std::io::Result<Request> {
         tracing::info!("read request");
-        let mut request_builder = RequestBuilder::default();
         loop {
             let frame = self.transport.read_frame().await?;
-            tracing::info!("read frame: {frame:?}, request_builder: {request_builder:?}");
-            match frame.r#type {
-                0x01 => {
+            tracing::info!("read frame: {frame:?}");
+            match FrameType::from(frame.r#type) {
+                FrameType::Data => {
+                    let request_builder = self
+                        .streams
+                        .entry(frame.stream_id)
+                        .or_insert(Default::default());
+                    request_builder.extend_body(frame.payload.as_slice());
+                    if 0 != frame.flags & flags::END_STREAM {
+                        return std::mem::take(request_builder).build();
+                    }
+                }
+                FrameType::Headers => {
+                    let request_builder = self
+                        .streams
+                        .entry(frame.stream_id)
+                        .or_insert(Default::default());
                     let mut decoder = Decoder::new();
                     for (k, v) in decoder.decode(&frame.payload).unwrap() {
                         let key = str::from_utf8(&k).unwrap();
@@ -126,12 +139,14 @@ impl Client {
                             }
                         }
                     }
-                    return request_builder.build();
+                    if 0 != frame.flags & flags::END_STREAM {
+                        return std::mem::take(request_builder).build();
+                    }
                 }
-                0x04 => {
+                FrameType::Settings => {
                     tracing::info!("ignore settings");
                 }
-                0x08 => {
+                FrameType::WindowUpdate => {
                     tracing::info!("window update: {frame:?}");
                 }
                 _ => {
