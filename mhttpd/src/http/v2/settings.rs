@@ -25,6 +25,36 @@ pub enum Setting {
     MaxHeaderListSize(u32),
 }
 
+impl Setting {
+    pub fn identifier(&self) -> u16 {
+        match self {
+            Setting::HeaderTableSize(_) => 0x01,
+            Setting::EnablePush(_) => 0x02,
+            Setting::MaxConcurrentStreams(_) => 0x03,
+            Setting::InitialWindowSize(_) => 0x04,
+            Setting::MaxFrameSize(_) => 0x05,
+            Setting::MaxHeaderListSize(_) => 0x06,
+        }
+    }
+
+    pub fn value(&self) -> u32 {
+        match self {
+            Setting::HeaderTableSize(value) => *value,
+            Setting::EnablePush(value) => {
+                if *value {
+                    1
+                } else {
+                    0
+                }
+            }
+            Setting::MaxConcurrentStreams(value) => *value,
+            Setting::InitialWindowSize(value) => *value,
+            Setting::MaxFrameSize(value) => *value,
+            Setting::MaxHeaderListSize(value) => *value,
+        }
+    }
+}
+
 impl SerDe for Setting {
     fn read<R: std::io::BufRead>(r: &mut R) -> std::io::Result<Self>
     where
