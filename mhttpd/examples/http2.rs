@@ -1,5 +1,5 @@
 use std::{
-    io::{BufRead, BufReader},
+    io::BufReader,
     net::{SocketAddr, TcpListener, TcpStream},
 };
 
@@ -63,7 +63,7 @@ fn process(addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
     let data_frame = Frame::Data {
         stream_id: 1,
         flags: flags::END_STREAM,
-        payload: b"it works!".to_vec(),
+        data: b"it works!".to_vec(),
     };
     data_frame.write(stream.get_mut())?;
     tracing::info!("Sent data frame");
