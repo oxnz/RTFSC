@@ -26,6 +26,18 @@ pub enum Setting {
 }
 
 impl Setting {
+    pub fn new(identifier: u16, value: u32) -> Self {
+        match identifier {
+            0x01 => Self::HeaderTableSize(value),
+            0x02 => Self::EnablePush(value != 0),
+            0x03 => Self::MaxConcurrentStreams(value),
+            0x04 => Self::InitialWindowSize(value),
+            0x05 => Self::MaxFrameSize(value),
+            0x06 => Self::MaxHeaderListSize(value),
+            _ => panic!("invalid value"),
+        }
+    }
+
     pub fn identifier(&self) -> u16 {
         match self {
             Setting::HeaderTableSize(_) => 0x01,
