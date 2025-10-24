@@ -40,6 +40,11 @@
     - reader-writer lock
         - std::shared_muex
         - std::shared_timed_mutex
+- recursive locking
+    - `std::recursive_mutex`
+        - can acquire multiple locks on a single instance from the same thread
+        - the lock and unlock number needs to match
+    - most of the time, should consider change design before adopt recursive mutex
 
 > The classic double-checked locking (DCL) pattern is tricky because it involves reordering issues, which are very easy to get wrong without proper memory ordering.
 > can fix it by using an atomic pointer with proper acquire-release semantics
