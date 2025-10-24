@@ -18,13 +18,31 @@ pub struct Request {
     body: Option<Vec<u8>>,
 }
 
+impl Request {
+    pub fn new(
+        method: Method,
+        target: String,
+        protocol: Protocol,
+        headers: Vec<Header>,
+        body: Option<Vec<u8>>,
+    ) -> Self {
+        Self {
+            method,
+            target,
+            protocol,
+            headers,
+            body,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Response {
     protocol: Protocol,
     status_code: StatusCode,
     reason_phrase: Option<String>,
     headers: Vec<Header>,
-    body: Option<Vec<u8>>,
+    pub(crate) body: Option<Vec<u8>>,
 }
 
 impl Response {

@@ -5,7 +5,7 @@ use std::{
 
 use mhttpd::http::{
     SerDe,
-    v2::{Frame, flags},
+    v2::{Frame, Preface, flags},
 };
 
 fn main() {
@@ -93,24 +93,5 @@ fn test_get() {
     unsafe {
         println!("stdout:\n{}", str::from_utf8_unchecked(&stdout));
         eprintln!("stderr:\n{}", str::from_utf8_unchecked(&stderr));
-    }
-}
-
-#[derive(Debug)]
-struct Preface;
-
-impl Preface {
-    pub fn read<R: BufRead>(stream: &mut R) -> std::io::Result<Self> {
-        let mut preface = [0u8; 24];
-        const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
-        stream.read_exact(&mut preface)?;
-        if preface != PREFACE {
-            tracing::error!("{:?}", unsafe { str::from_utf8_unchecked(&preface) });
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid HTTP/2 preface",
-            ));
-        }
-        Ok(Self)
     }
 }

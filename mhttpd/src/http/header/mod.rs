@@ -16,6 +16,8 @@ pub enum Header {
     Date(String),
     CacheControl(String),
 
+    // V2
+    Pseudo { name: String, value: String },
     // other
     Custom { name: String, value: String },
 }
@@ -58,6 +60,7 @@ impl std::fmt::Display for Header {
             Header::Date(_) => todo!(),
             Header::CacheControl(_) => todo!(),
             Header::Custom { name, value } => write!(f, "{}: {}", name, value),
+            Header::Pseudo { name, value } => write!(f, "{}: {}", name, value),
         }
     }
 }
