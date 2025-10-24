@@ -1,8 +1,3 @@
-use std::{
-    fmt::{Display, write},
-    str::FromStr,
-};
-
 #[derive(Debug)]
 pub enum Scheme {
     Http,
@@ -20,7 +15,7 @@ impl From<&str> for Scheme {
     }
 }
 
-impl Display for Scheme {
+impl std::fmt::Display for Scheme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Scheme::Http => write!(f, "http"),
