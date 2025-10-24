@@ -80,15 +80,20 @@ impl SerDe for Setting {
     }
 }
 
-#[test]
-fn test_serde() {
-    let raw = [0, 3, 0, 0, 0, 0x64, 0, 4, 0, 0xa0, 0, 0, 0, 2, 0, 0, 0, 0];
-    let mut buf = Vec::new();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    for item in unsafe { raw.as_chunks_unchecked::<6>() } {
-        let setting = Setting::read(&mut std::io::Cursor::new(item)).unwrap();
-        println!("{setting:?}");
-        setting.write(&mut buf).unwrap();
+    #[test]
+    fn test_serde() {
+        let raw = [0, 3, 0, 0, 0, 0x64, 0, 4, 0, 0xa0, 0, 0, 0, 2, 0, 0, 0, 0];
+        let mut buf = Vec::new();
+
+        for item in unsafe { raw.as_chunks_unchecked::<6>() } {
+            let setting = Setting::read(&mut std::io::Cursor::new(item)).unwrap();
+            println!("{setting:?}");
+            setting.write(&mut buf).unwrap();
+        }
+        assert_eq!(buf, raw);
     }
-    assert_eq!(buf, raw);
 }

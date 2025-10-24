@@ -4,6 +4,7 @@ mod method;
 mod scheme;
 mod version;
 pub use scheme::Scheme;
+pub mod codec;
 mod status;
 pub mod v2;
 pub use header::Header;

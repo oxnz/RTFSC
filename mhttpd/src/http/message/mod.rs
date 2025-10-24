@@ -1,6 +1,5 @@
 mod request;
 mod response;
-
 pub use request::Request;
 pub use request::RequestBuilder;
 pub use response::Response;
