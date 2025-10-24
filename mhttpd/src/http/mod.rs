@@ -1,8 +1,8 @@
 mod header;
 mod message;
 mod method;
-mod protocol;
-pub mod scheme;
+mod scheme;
+mod version;
 pub use scheme::Scheme;
 mod status;
 pub mod transport;
@@ -10,5 +10,5 @@ pub mod v2;
 pub use header::Header;
 pub use message::{Request, RequestBuilder, Response, SerDe};
 pub use method::Method;
-pub use protocol::Protocol;
 pub use status::StatusCode;
+pub use version::Version;

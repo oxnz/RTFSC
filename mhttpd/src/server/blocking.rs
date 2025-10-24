@@ -27,7 +27,7 @@ fn process(remote_addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
         tracing::debug!("request: {request:?} from addr: {remote_addr:?}");
         let body = br#"<html lang="en"><body><h1>it works!</h1></body></html>"#.to_vec();
         let response = Response::new(
-            crate::http::Protocol::Http("1.1".to_string()),
+            crate::http::Version::Http("1.1".to_string()),
             crate::http::StatusCode::Ok,
             None,
             vec![

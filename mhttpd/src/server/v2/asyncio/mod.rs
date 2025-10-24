@@ -1,15 +1,15 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use hpack::{Decoder, Encoder};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream, ToSocketAddrs},
     task::JoinSet,
 };
 
 use crate::http::{
-    Header, Method, Protocol, Request, Response,
-    v2::{PREFACE, flags},
+    Header, Request, RequestBuilder, Response,
+    transport::v2::{Frame, Transport},
+    v2::flags,
 };
 
 #[derive(Debug, Default)]
@@ -41,18 +41,7 @@ impl Server {
 
     pub async fn handle_client(mut client: Client) -> std::io::Result<()> {
         tracing::debug!("client: {client:?}");
-        let mut preface = [0u8; PREFACE.len()];
-        client.stream.read_exact(&mut preface).await.unwrap();
-        assert_eq!(preface, PREFACE);
-        let client_settings = client.read_frame().await?;
-        assert_eq!(client_settings.r#type, 0x04);
-        let server_settings = Frame {
-            r#type: 0x04,
-            flags: 0,
-            stream_id: 0,
-            payload: vec![],
-        };
-        client.send_frame(&server_settings).await?;
+        client.exchange_preface().await?;
         tracing::debug!("preface exchanged");
         loop {
             match client.read_request().await {
@@ -76,7 +65,7 @@ impl Server {
         tracing::info!("handle request: {request:?}");
         let content = b"it works!".to_vec();
         Ok(Response::new(
-            crate::http::Protocol::Http("2.0".to_string()),
+            crate::http::Version::Http("2.0".to_string()),
             crate::http::StatusCode::Ok,
             None,
             vec![Header::ContentLength(content.len())],
@@ -87,91 +76,29 @@ impl Server {
 
 #[derive(Debug)]
 pub struct Client {
-    stream: TcpStream,
+    transport: Transport,
     streams: HashMap<u32, Request>,
 }
 
 impl From<TcpStream> for Client {
     fn from(value: TcpStream) -> Self {
         Self {
-            stream: value,
+            transport: value.into(),
             streams: HashMap::default(),
         }
     }
 }
 
-#[derive(Debug, Default)]
-struct RequestBuilder {
-    method: Option<Method>,
-    scheme: Option<Scheme>,
-    authority: Option<String>,
-    path: Option<String>,
-    headers: Vec<Header>,
-    body: Option<Vec<u8>>,
-}
-
-#[derive(Debug)]
-pub enum Scheme {
-    Http,
-    Https,
-}
-
-impl FromStr for Scheme {
-    type Err = std::io::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "http" => Ok(Self::Http),
-            "https" => Ok(Self::Https),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "invalid scheme",
-            )),
-        }
-    }
-}
-
-impl RequestBuilder {
-    pub fn add_header<K: Into<String>, V: Into<String>>(&mut self, name: K, value: V) {
-        self.headers.push(Header::Custom {
-            name: name.into(),
-            value: value.into(),
-        });
-    }
-
-    fn set_method(&mut self, value: Method) {
-        self.method = Some(value)
-    }
-
-    fn set_path(&mut self, path: String) {
-        self.path = Some(path)
-    }
-
-    pub fn build(self) -> std::io::Result<Request> {
-        Ok(Request::new(
-            self.method.unwrap(),
-            self.path.unwrap(),
-            Protocol::Http("2.0".to_string()),
-            self.headers,
-            self.body,
-        ))
-    }
-
-    fn set_scheme(&mut self, scheme: Scheme) {
-        self.scheme = Some(scheme);
-    }
-
-    fn set_authority(&mut self, authority: String) {
-        self.authority = Some(authority)
-    }
-}
-
 impl Client {
+    pub async fn exchange_preface(&mut self) -> std::io::Result<()> {
+        self.transport.exchange_preface().await
+    }
+
     pub async fn read_request(&mut self) -> std::io::Result<Request> {
         tracing::info!("read request");
         let mut request_builder = RequestBuilder::default();
         loop {
-            let frame = self.read_frame().await?;
+            let frame = self.transport.read_frame().await?;
             tracing::info!("read frame: {frame:?}, request_builder: {request_builder:?}");
             match frame.r#type {
                 0x01 => {
@@ -184,7 +111,7 @@ impl Client {
                                 request_builder.set_method(value.parse().unwrap());
                             }
                             ":scheme" => {
-                                request_builder.set_scheme(value.parse().unwrap());
+                                request_builder.set_scheme(value.into());
                             }
                             ":authority" => {
                                 request_builder.set_authority(value.to_string());
@@ -223,55 +150,16 @@ impl Client {
             stream_id: 1,
             payload,
         };
-        self.send_frame(&header_frame).await?;
+        self.transport.send_frame(&header_frame).await?;
         let data_frame = Frame {
             r#type: 0x00,
             flags: flags::END_STREAM,
             stream_id: 1,
             payload: response.body.unwrap_or_default(),
         };
-        self.send_frame(&data_frame).await?;
+        self.transport.send_frame(&data_frame).await?;
         Ok(())
     }
-
-    pub async fn read_frame(&mut self) -> std::io::Result<Frame> {
-        let mut header = [0u8; 9];
-        self.stream.read_exact(&mut header).await?;
-        let len = ((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32);
-        let frame_type = header[3];
-        let flags = header[4];
-        let stream_id = ((header[5] as u32 & 0x7F) << 24)
-            | ((header[6] as u32) << 16)
-            | ((header[7] as u32) << 8)
-            | (header[8] as u32);
-        let mut payload = vec![0u8; len as usize];
-        self.stream.read_exact(&mut payload).await?;
-        Ok(Frame {
-            r#type: frame_type,
-            flags,
-            stream_id,
-            payload,
-        })
-    }
-
-    pub async fn send_frame(&mut self, frame: &Frame) -> std::io::Result<()> {
-        let len: u32 = frame.payload.len() as u32;
-        self.stream.write_all(&len.to_be_bytes()[1..]).await?;
-        self.stream.write_all(&[frame.r#type]).await?; // type
-        self.stream.write_all(&[frame.flags]).await?; // flags
-        self.stream
-            .write_all(&frame.stream_id.to_be_bytes())
-            .await?; // stream_id
-        self.stream.write_all(&frame.payload).await
-    }
-}
-
-#[derive(Debug)]
-pub struct Frame {
-    r#type: u8,
-    flags: u8,
-    stream_id: u32,
-    payload: Vec<u8>,
 }
 
 #[cfg(test)]

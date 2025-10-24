@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
 #[derive(Debug)]
-pub enum Protocol {
+pub enum Version {
     Http(String),
 }
 
-impl FromStr for Protocol {
+impl FromStr for Version {
     type Err = std::io::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -20,10 +20,10 @@ impl FromStr for Protocol {
     }
 }
 
-impl std::fmt::Display for Protocol {
+impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Protocol::Http(version) => write!(f, "HTTP/{}", version),
+            Version::Http(version) => write!(f, "HTTP/{}", version),
         }
     }
 }

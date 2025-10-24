@@ -1,6 +1,6 @@
 use std::io::{BufRead, Write};
 
-use crate::http::{Header, Method, Protocol, Scheme, SerDe};
+use crate::http::{Header, Method, Scheme, SerDe, Version};
 
 #[derive(Debug, Default)]
 pub struct RequestBuilder {
@@ -13,29 +13,8 @@ pub struct RequestBuilder {
 }
 
 impl RequestBuilder {
-    pub fn add_header<K: Into<String>, V: Into<String>>(&mut self, name: K, value: V) {
-        self.headers.push(Header::Custom {
-            name: name.into(),
-            value: value.into(),
-        });
-    }
-
     pub fn set_method(&mut self, value: Method) {
         self.method = Some(value)
-    }
-
-    pub fn set_path(&mut self, path: String) {
-        self.path = Some(path)
-    }
-
-    pub fn build(self) -> std::io::Result<Request> {
-        Ok(Request::new(
-            self.method.unwrap(),
-            self.path.unwrap(),
-            Protocol::Http("2.0".to_string()),
-            self.headers,
-            self.body,
-        ))
     }
 
     pub fn set_scheme(&mut self, scheme: Scheme) {
@@ -45,13 +24,34 @@ impl RequestBuilder {
     pub fn set_authority(&mut self, authority: String) {
         self.authority = Some(authority)
     }
+
+    pub fn set_path(&mut self, path: String) {
+        self.path = Some(path)
+    }
+
+    pub fn add_header<K: Into<String>, V: Into<String>>(&mut self, name: K, value: V) {
+        self.headers.push(Header::Custom {
+            name: name.into(),
+            value: value.into(),
+        });
+    }
+
+    pub fn build(self) -> std::io::Result<Request> {
+        Ok(Request::new(
+            self.method.unwrap(),
+            self.path.unwrap(),
+            Version::Http("2.0".to_string()),
+            self.headers,
+            self.body,
+        ))
+    }
 }
 
 #[derive(Debug)]
 pub struct Request {
     method: Method,
     path: String,
-    protocol: Protocol,
+    protocol: Version,
     headers: Vec<Header>,
     body: Option<Vec<u8>>,
 }
@@ -60,7 +60,7 @@ impl Request {
     pub fn new(
         method: Method,
         target: String,
-        protocol: Protocol,
+        protocol: Version,
         headers: Vec<Header>,
         body: Option<Vec<u8>>,
     ) -> Self {
@@ -94,7 +94,7 @@ impl SerDe for Request {
                 Some((target, protocol)) => (
                     method.parse::<Method>()?,
                     target.to_string(),
-                    protocol.parse::<Protocol>()?,
+                    protocol.parse::<Version>()?,
                 ),
                 None => todo!(),
             },

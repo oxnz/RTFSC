@@ -1,10 +1,10 @@
 use std::io::{BufRead, BufWriter, Write};
 
-use crate::http::{Header, Protocol, SerDe, StatusCode};
+use crate::http::{Header, SerDe, StatusCode, Version};
 
 #[derive(Debug)]
 pub struct Response {
-    protocol: Protocol,
+    protocol: Version,
     status_code: StatusCode,
     reason_phrase: Option<String>,
     headers: Vec<Header>,
@@ -13,7 +13,7 @@ pub struct Response {
 
 impl Response {
     pub fn new(
-        protocol: Protocol,
+        protocol: Version,
         status_code: StatusCode,
         reason_phrase: Option<String>,
         headers: Vec<Header>,
@@ -72,7 +72,7 @@ mod tests {
     fn test_response_write() {
         let body = b"it works!".to_vec();
         let response = Response::new(
-            crate::http::Protocol::Http("1.1".to_string()),
+            crate::http::Version::Http("1.1".to_string()),
             crate::http::StatusCode::Ok,
             None,
             vec![

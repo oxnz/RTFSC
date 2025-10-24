@@ -2,12 +2,14 @@ mod connection;
 pub mod flags;
 pub use connection::Connection;
 mod frame;
-mod header;
 mod settings;
 mod transport;
 pub use frame::Frame;
 mod preface;
 pub use preface::{PREFACE, Preface};
+mod error;
+pub mod stream;
+pub use error::Error as ErrorCode;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]

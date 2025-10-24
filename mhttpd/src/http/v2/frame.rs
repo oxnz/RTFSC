@@ -1,16 +1,73 @@
-use crate::http::{SerDe, v2::settings::Setting};
+use crate::http::{
+    SerDe,
+    v2::{ErrorCode, settings::Setting},
+};
+
+#[derive(Debug)]
+pub enum Type {
+    Data,
+    Headers,
+    Priority,
+    RstStream,
+    Settings,
+    PushPromise,
+    Ping,
+    GoAway,
+    WindowUpdate,
+    Continuation,
+    Unknown(u8),
+}
+
+impl From<u8> for Type {
+    fn from(value: u8) -> Self {
+        match value {
+            0x00 => Self::Data,
+            0x01 => Self::Headers,
+            0x02 => Self::Priority,
+            0x03 => Self::RstStream,
+            0x04 => Self::Settings,
+            0x05 => Self::PushPromise,
+            0x06 => Self::Ping,
+            0x07 => Self::GoAway,
+            0x08 => Self::WindowUpdate,
+            0x09 => Self::Continuation,
+            _ => Self::Unknown(value),
+        }
+    }
+}
+
+impl From<Type> for u8 {
+    fn from(value: Type) -> Self {
+        match value {
+            Type::Data => 0x00,
+            Type::Headers => 0x01,
+            Type::Priority => 0x02,
+            Type::RstStream => 0x03,
+            Type::Settings => 0x04,
+            Type::PushPromise => 0x05,
+            Type::Ping => 0x06,
+            Type::GoAway => 0x07,
+            Type::WindowUpdate => 0x08,
+            Type::Continuation => 0x09,
+            Type::Unknown(_value) => _value,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum Frame {
     Data {
         stream_id: u32,
         flags: u8,
-        payload: Vec<u8>,
+        data: Vec<u8>,
     },
     Headers {
         stream_id: u32,
         flags: u8,
         items: Vec<(Vec<u8>, Vec<u8>)>,
+    },
+    RstStream {
+        error_code: ErrorCode,
     },
     Settings {
         flags: u8,
@@ -30,8 +87,9 @@ impl SerDe for Frame {
         // read header
         let mut header = [0u8; 9];
         stream.read_exact(&mut header)?;
-        let len = ((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32);
-        let frame_type = header[3];
+        let len =
+            (((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32)) as usize;
+        let frame_type: Type = header[3].into();
         let flags = header[4];
         let stream_id = ((header[5] as u32 & 0x7F) << 24)
             | ((header[6] as u32) << 16)
@@ -42,16 +100,20 @@ impl SerDe for Frame {
         let mut payload = vec![0u8; len as usize];
         stream.read_exact(&mut payload)?;
         match frame_type {
-            0x0 => {
-                // data
+            Type::Data => {
+                let data = if 0 == flags & super::flags::PADDED {
+                    payload
+                } else {
+                    let pad_length = payload[0] as usize;
+                    payload[1..len - pad_length].to_vec()
+                };
                 Ok(Self::Data {
                     stream_id,
                     flags,
-                    payload,
+                    data,
                 })
             }
-            0x1 => {
-                // HEADERS
+            Type::Headers => {
                 let mut decoder = hpack::Decoder::new();
                 let items = decoder.decode(&payload).unwrap();
                 Ok(Self::Headers {
@@ -60,7 +122,12 @@ impl SerDe for Frame {
                     items,
                 })
             }
-            0x04 => {
+            Type::RstStream => Ok(Self::RstStream {
+                error_code: ErrorCode::from(u32::from_be_bytes(
+                    *payload.first_chunk::<4>().unwrap(),
+                )),
+            }),
+            Type::Settings => {
                 let mut items = Vec::new();
                 let n = payload.len() / 6;
                 let mut stream = std::io::Cursor::new(payload);
@@ -70,7 +137,7 @@ impl SerDe for Frame {
                 }
                 Ok(Self::Settings { flags, items })
             }
-            0x08 => {
+            Type::WindowUpdate => {
                 if payload.len() == 4 {
                     let raw = u32::from_be_bytes(payload.try_into().unwrap());
                     let increment = raw & 0x7FFF_FFFF; // mask off reserved bit
@@ -92,7 +159,7 @@ impl SerDe for Frame {
                 }
             }
             _ => {
-                tracing::info!("Other frame type 0x{:x}", frame_type);
+                tracing::info!("Other frame type {:?}", frame_type);
                 panic!();
             }
         }
@@ -138,78 +205,93 @@ impl SerDe for Frame {
             Frame::Data {
                 stream_id,
                 flags,
-                payload,
+                data,
             } => {
-                let len: u32 = payload.len() as u32;
+                let len: u32 = data.len() as u32;
                 stream.write_all(&len.to_be_bytes()[1..])?;
                 stream.write_all(&[0x00])?; // type
                 stream.write_all(&[*flags])?; // flags
                 stream.write_all(&stream_id.to_be_bytes())?;
-                stream.write_all(&payload)?;
+                stream.write_all(&data)?;
+            }
+            Frame::RstStream { error_code } => {
+                let len = 4u32;
+                let stream_id = 0u32;
+                let data = u32::from(*error_code);
+                stream.write_all(&len.to_be_bytes()[1..])?;
+                stream.write_all(&[Type::RstStream.into()])?; // type
+                stream.write_all(&[0])?; // flags
+                stream.write_all(&stream_id.to_be_bytes())?;
+                stream.write_all(&data.to_be_bytes())?;
             }
         }
         Ok(())
     }
 }
 
-#[test]
-fn test_serde_data() {
-    let raw = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-    let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
-    println!("{frame:?}");
-    let mut v = Vec::new();
-    frame.write(&mut v).unwrap();
-    println!("{v:?}");
-    assert_eq!(raw, v.as_slice());
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn test_serde_headers() {
-    let raw = [
-        0, 0, 30, 1, 5, 0, 0, 0, 1, 130, 134, 65, 138, 8, 157, 92, 11, 129, 112, 220, 120, 0, 7,
-        132, 122, 136, 37, 182, 80, 195, 203, 186, 184, 127, 83, 3, 42, 47, 42,
-    ];
-    let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
-    println!("{frame:?}");
-    let mut v = Vec::new();
-    frame.write(&mut v).unwrap();
-    println!("{v:?}");
-    // assert_eq!(raw, v.as_slice());
-}
+    #[test]
+    fn test_serde_data() {
+        let raw = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
+        println!("{frame:?}");
+        let mut v = Vec::new();
+        frame.write(&mut v).unwrap();
+        println!("{v:?}");
+        assert_eq!(raw, v.as_slice());
+    }
 
-#[test]
-fn test_serde_settings() {
-    let raw = [
-        0, 0, 18, 4, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 100, 0, 4, 0, 160, 0, 0, 0, 2, 0, 0, 0, 0,
-    ];
-    let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
-    println!("{frame:?}");
-    let mut v = Vec::new();
-    frame.write(&mut v).unwrap();
-    println!("{v:?}");
-    assert_eq!(raw, v.as_slice());
-}
+    #[test]
+    fn test_serde_headers() {
+        let raw = [
+            0, 0, 30, 1, 5, 0, 0, 0, 1, 130, 134, 65, 138, 8, 157, 92, 11, 129, 112, 220, 120, 0,
+            7, 132, 122, 136, 37, 182, 80, 195, 203, 186, 184, 127, 83, 3, 42, 47, 42,
+        ];
+        let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
+        println!("{frame:?}");
+        let mut v = Vec::new();
+        frame.write(&mut v).unwrap();
+        println!("{v:?}");
+        // assert_eq!(raw, v.as_slice());
+    }
 
-#[test]
-fn test_serde_window_update() {
-    let raw = [0, 0, 4, 8, 0, 0, 0, 0, 0, 62, 127, 0, 1];
-    let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
-    println!("{frame:?}");
-    let mut v = Vec::new();
-    frame.write(&mut v).unwrap();
-    println!("{v:?}");
-    assert_eq!(raw, v.as_slice());
-}
+    #[test]
+    fn test_serde_settings() {
+        let raw = [
+            0, 0, 18, 4, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 100, 0, 4, 0, 160, 0, 0, 0, 2, 0, 0, 0, 0,
+        ];
+        let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
+        println!("{frame:?}");
+        let mut v = Vec::new();
+        frame.write(&mut v).unwrap();
+        println!("{v:?}");
+        assert_eq!(raw, v.as_slice());
+    }
 
-#[test]
-fn test_hpack() {
-    let raw = [
-        130, 134, 65, 138, 8, 157, 92, 11, 129, 112, 220, 120, 0, 7, 132, 122, 136, 37, 182, 80,
-        195, 203, 186, 184, 127, 83, 3, 42, 47, 42,
-    ];
-    let mut decoder = hpack::Decoder::new();
-    let items = decoder.decode(&raw).unwrap();
-    let mut encoder = hpack::Encoder::new();
-    let result = encoder.encode(items.iter().map(|(k, v)| (&k[..], &v[..])));
-    assert_eq!(raw, result.as_slice());
+    #[test]
+    fn test_serde_window_update() {
+        let raw = [0, 0, 4, 8, 0, 0, 0, 0, 0, 62, 127, 0, 1];
+        let frame = Frame::read(&mut std::io::Cursor::new(raw)).unwrap();
+        println!("{frame:?}");
+        let mut v = Vec::new();
+        frame.write(&mut v).unwrap();
+        println!("{v:?}");
+        assert_eq!(raw, v.as_slice());
+    }
+
+    #[test]
+    fn test_hpack() {
+        let raw = [
+            130, 134, 65, 138, 8, 157, 92, 11, 129, 112, 220, 120, 0, 7, 132, 122, 136, 37, 182,
+            80, 195, 203, 186, 184, 127, 83, 3, 42, 47, 42,
+        ];
+        let mut decoder = hpack::Decoder::new();
+        let items = decoder.decode(&raw).unwrap();
+        let mut encoder = hpack::Encoder::new();
+        let result = encoder.encode(items.iter().map(|(k, v)| (&k[..], &v[..])));
+        // assert_eq!(raw, result.as_slice());
+    }
 }

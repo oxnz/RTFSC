@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::{SocketAddr, TcpListener, ToSocketAddrs},
+    net::{TcpListener, ToSocketAddrs},
     os::fd::AsRawFd,
 };
 
