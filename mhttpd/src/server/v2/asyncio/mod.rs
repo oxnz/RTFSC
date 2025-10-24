@@ -8,8 +8,10 @@ use tokio::{
 
 use crate::http::{
     Header, Request, RequestBuilder, Response,
-    transport::v2::{Frame, Transport},
-    v2::flags,
+    v2::{
+        flags,
+        transport::{Frame, Transport},
+    },
 };
 
 #[derive(Debug, Default)]

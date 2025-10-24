@@ -3,7 +3,7 @@ pub mod flags;
 pub use connection::Connection;
 mod frame;
 mod settings;
-mod transport;
+pub mod transport;
 pub use frame::Frame;
 mod preface;
 pub use preface::{PREFACE, Preface};
