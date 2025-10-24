@@ -71,7 +71,7 @@ impl KQueue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct KEvent(libc::kevent);
 
 impl KEvent {
