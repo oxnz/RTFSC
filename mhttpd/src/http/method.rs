@@ -58,11 +58,44 @@ mod tests {
     #[test]
     fn test_parse() {
         assert!(matches!("HEAD".parse(), Ok(Method::HEAD)));
+        assert!(matches!("OPTIONS".parse(), Ok(Method::OPTIONS)));
+        assert!(matches!("GET".parse(), Ok(Method::GET)));
+        assert!(matches!("POST".parse(), Ok(Method::POST)));
+        assert!(matches!("PUT".parse(), Ok(Method::PUT)));
+        assert!(matches!("DELETE".parse(), Ok(Method::DELETE)));
+        assert!(matches!("CONNECT".parse(), Ok(Method::CONNECT)));
+        assert!(matches!("PATCH".parse(), Ok(Method::PATCH)));
+        assert!(matches!("TRACE".parse(), Ok(Method::TRACE)));
+
+        // Test invalid methods
         assert!(matches!("HEADx".parse::<Method>(), Err(_)));
+        assert!(matches!("".parse::<Method>(), Err(_)));
+        assert!(matches!("INVALID".parse::<Method>(), Err(_)));
     }
 
     #[test]
     fn test_display() {
+        assert_eq!(Method::HEAD.to_string(), "HEAD");
+        assert_eq!(Method::OPTIONS.to_string(), "OPTIONS");
         assert_eq!(Method::GET.to_string(), "GET");
+        assert_eq!(Method::POST.to_string(), "POST");
+        assert_eq!(Method::PUT.to_string(), "PUT");
+        assert_eq!(Method::DELETE.to_string(), "DELETE");
+        assert_eq!(Method::CONNECT.to_string(), "CONNECT");
+        assert_eq!(Method::PATCH.to_string(), "PATCH");
+        assert_eq!(Method::TRACE.to_string(), "TRACE");
+    }
+
+    #[test]
+    fn test_roundtrip() {
+        // Test that parsing and then displaying gives the original string
+        let methods = [
+            "HEAD", "OPTIONS", "GET", "POST", "PUT", "DELETE", "CONNECT", "PATCH", "TRACE",
+        ];
+        for method in methods {
+            let parsed: Method = method.parse().unwrap();
+            let displayed = parsed.to_string();
+            assert_eq!(method, displayed);
+        }
     }
 }
