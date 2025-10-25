@@ -1,11 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use tokio::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
     task::JoinSet,
 };
 
-use crate::http::{Header, Request, RequestBuilder, Response, v2::transport::Transport};
+use crate::http::{Header, Request, Response, v2::transport::Transport};
 
 #[derive(Debug, Default)]
 pub struct Router {}
@@ -27,7 +27,6 @@ impl Router {
 #[derive(Debug, Default)]
 pub struct Server {
     router: Arc<Router>,
-    workers: JoinSet<()>,
 }
 
 impl Server {
@@ -35,19 +34,23 @@ impl Server {
         let socket = TcpListener::bind(addr).await?;
         let mut workers = JoinSet::new();
         loop {
-            match socket.accept().await {
-                Ok((stream, _remote_addr)) => {
-                    let router = Arc::clone(&self.router);
-                    workers.spawn(async move {
-                        if let Err(e) = Self::handle_client(stream.into(), router).await {
-                            tracing::error!("{e:?}");
+            tokio::select! {
+                result = socket.accept() => {
+                    match result {
+                        Ok((stream, _remote_addr)) => {
+                            let router = Arc::clone(&self.router);
+                            workers.spawn(async move {
+                                if let Err(e) = Self::handle_client(stream.into(), router).await {
+                                    tracing::error!("{e:?}");
+                                }
+                            });
                         }
-                    });
+                        Err(e) => tracing::error!("accept: {e:?}"),
+                    }
                 }
-                Err(e) => tracing::error!("accept: {e:?}"),
-            }
-            if let Some(Err(e)) = workers.try_join_next() {
-                tracing::error!("join error: {e:?}");
+                Some(Err(e)) = workers.join_next() => {
+                    tracing::error!("join error: {e:?}");
+                }
             }
         }
         Ok(())
@@ -64,15 +67,13 @@ impl Server {
 #[derive(Debug)]
 pub struct Client {
     transport: Transport,
-    streams: HashMap<u32, RequestBuilder>,
-    tasks: JoinSet<()>,
+    tasks: JoinSet<std::io::Result<Response>>,
 }
 
 impl From<TcpStream> for Client {
     fn from(value: TcpStream) -> Self {
         Self {
             transport: value.into(),
-            streams: HashMap::default(),
             tasks: JoinSet::new(),
         }
     }
@@ -85,17 +86,42 @@ impl Client {
 
     pub async fn process(&mut self, router: Arc<Router>) -> std::io::Result<()> {
         loop {
-            match self.transport.read_request().await {
-                Ok(request) => {
-                    let response = router.handle_request(request).await?;
-                    self.transport.send_response(response).await?;
+            tokio::select! {
+                Some(result) = self.tasks.join_next() => {
+                    match result {
+                        Ok(result) => {
+                            match result {
+                                Ok(response) => {
+                                    if let Err(e) = self.transport.send_response(response).await {
+                                        tracing::error!("send response: {e:?}");
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!("{e:?}");
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("join: {e:?}");
+                        }
+                    }
                 }
-                Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                    tracing::info!("client EOF");
-                    break;
-                }
-                Err(e) => {
-                    tracing::error!("{e:?}");
+                result = self.transport.read_request() => {
+                    match result {
+                        Ok(request) => {
+                            let router = Arc::clone(&router);
+                            self.tasks.spawn(async move {
+                                router.handle_request(request).await
+                            });
+                        }
+                        Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                            tracing::info!("client EOF");
+                            break;
+                        }
+                        Err(e) => {
+                            tracing::error!("read request: {e:?}");
+                        }
+                    }
                 }
             }
         }
