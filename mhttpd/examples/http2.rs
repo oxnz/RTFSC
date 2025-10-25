@@ -40,7 +40,7 @@ fn process(addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
     tracing::info!("rcvd frame: {frame:x?}");
     // --- 4. Send a simple SETTINGS ACK ---
     let settings_frame = Frame::Settings {
-        flags: 0,
+        ack: 0,
         items: vec![],
     };
     settings_frame.write(stream.get_mut())?;

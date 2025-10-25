@@ -45,7 +45,7 @@ impl Transport {
         // assert_eq!(client_settings.r#type, 0x04);
 
         let server_settings = Frame::Settings {
-            flags: 0,
+            ack: 0,
             items: vec![
                 Setting::MaxConcurrentStreams(10),
                 Setting::InitialWindowSize(10485760),

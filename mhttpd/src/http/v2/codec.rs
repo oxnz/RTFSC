@@ -23,7 +23,7 @@ impl Encode<Frame> for FrameCodec {
     fn encode(&mut self, item: Frame, stream: &mut bytes::BytesMut) -> std::io::Result<()> {
         let header_len = 9;
         match item {
-            Frame::Settings { flags, items } => {
+            Frame::Settings { ack: flags, items } => {
                 let payload_len: u32 = items.len() as u32 * 6;
                 stream.reserve(header_len + payload_len as usize);
                 stream.put(&payload_len.to_be_bytes()[1..]);
@@ -144,7 +144,7 @@ impl Decode<Frame> for FrameCodec {
                             let setting = Setting::new(identifier, value);
                             items.push(setting);
                         }
-                        Frame::Settings { flags, items }
+                        Frame::Settings { ack: flags, items }
                     }
                     FrameType::WindowUpdate => {
                         if payload.len() == 4 {

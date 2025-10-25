@@ -72,7 +72,7 @@ pub enum Frame {
         error_code: ErrorCode,
     },
     Settings {
-        flags: u8,
+        ack: u8,
         items: Vec<Setting>,
     },
     WindowUpdate {
@@ -141,7 +141,7 @@ impl Frame {
                     let setting = Setting::read(&mut stream)?;
                     items.push(setting);
                 }
-                Ok(Self::Settings { flags, items })
+                Ok(Self::Settings { ack: flags, items })
             }
             Type::WindowUpdate => {
                 if payload.len() == 4 {
@@ -177,7 +177,7 @@ impl Frame {
         encoder: &mut hpack::Encoder,
     ) -> std::io::Result<()> {
         match self {
-            Frame::Settings { flags, items } => {
+            Frame::Settings { ack: flags, items } => {
                 let len: u32 = items.len() as u32 * 6;
                 stream.write_all(&len.to_be_bytes()[1..])?;
                 stream.write_all(&[0x04])?; // type
@@ -299,7 +299,7 @@ impl SerDe for Frame {
                     let setting = Setting::read(&mut stream)?;
                     items.push(setting);
                 }
-                Ok(Self::Settings { flags, items })
+                Ok(Self::Settings { ack: flags, items })
             }
             Type::WindowUpdate => {
                 if payload.len() == 4 {
@@ -331,7 +331,7 @@ impl SerDe for Frame {
 
     fn write<W: std::io::Write>(&self, stream: &mut W) -> std::io::Result<()> {
         match self {
-            Frame::Settings { flags, items } => {
+            Frame::Settings { ack: flags, items } => {
                 let len: u32 = items.len() as u32 * 6;
                 stream.write_all(&len.to_be_bytes()[1..])?;
                 stream.write_all(&[0x04])?; // type

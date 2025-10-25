@@ -91,13 +91,13 @@ impl Connection {
                         "stream reset",
                     ));
                 }
-                crate::http::v2::Frame::Settings { flags, items } => {
+                crate::http::v2::Frame::Settings { ack: flags, items } => {
                     if 0 != flags & flags::ACK {
                         tracing::info!("settings acked");
                     } else {
                         self.transport
                             .send_frame(&Frame::Settings {
-                                flags: flags::ACK,
+                                ack: flags::ACK,
                                 items: vec![],
                             })
                             .await?;
