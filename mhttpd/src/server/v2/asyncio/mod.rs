@@ -14,12 +14,15 @@ impl Router {
     pub async fn handle_request(&self, request: Request) -> std::io::Result<Response> {
         tracing::info!("handle request: {request:?}");
         let content = b"it works!".to_vec();
-        tokio::time::sleep(Duration::from_secs(4)).await;
+        // tokio::time::sleep(Duration::from_secs(4)).await;
         Ok(Response::new(
             crate::http::Version::Http("2.0".to_string()),
             crate::http::StatusCode::Ok,
             None,
-            vec![Header::ContentLength(content.len())],
+            vec![Header::Literal {
+                name: "content-length".to_string(),
+                value: content.len().to_string(),
+            }],
             Some(content),
         ))
     }
@@ -68,7 +71,7 @@ impl Server {
 #[derive(Debug)]
 pub struct Client {
     connection: Connection,
-    tasks: JoinSet<std::io::Result<Response>>,
+    tasks: JoinSet<std::io::Result<(u32, Response)>>,
 }
 
 impl From<TcpStream> for Client {
@@ -92,8 +95,8 @@ impl Client {
                     match result {
                         Ok(result) => {
                             match result {
-                                Ok(response) => {
-                                    if let Err(e) = self.connection.send_response(response).await {
+                                Ok((stream_id, response)) => {
+                                    if let Err(e) = self.connection.send_response(stream_id, response).await {
                                         tracing::error!("send response: {e:?}");
                                     }
                                 }
@@ -109,10 +112,10 @@ impl Client {
                 }
                 result = self.connection.read_request() => {
                     match result {
-                        Ok(request) => {
+                        Ok((stream_id, request)) => {
                             let router = Arc::clone(&router);
                             self.tasks.spawn(async move {
-                                router.handle_request(request).await
+                                router.handle_request(request).await.map(|x| (stream_id, x))
                             });
                         }
                         Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {

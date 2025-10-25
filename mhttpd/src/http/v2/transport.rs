@@ -1,22 +1,37 @@
+use std::vec;
+
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 
-use crate::http::v2::connection::Frame;
+use crate::http::v2::Frame;
 
 /**
  * socket
  * codec
  */
-#[derive(Debug)]
 pub struct Transport {
     stream: TcpStream,
+    hpack_encoder: hpack::Encoder<'static>,
+    hpack_decoder: hpack::Decoder<'static>,
+}
+
+impl std::fmt::Debug for Transport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transport")
+            .field("stream", &self.stream)
+            .finish()
+    }
 }
 
 impl From<TcpStream> for Transport {
     fn from(value: TcpStream) -> Self {
-        Self { stream: value }
+        Self {
+            stream: value,
+            hpack_encoder: hpack::Encoder::new(),
+            hpack_decoder: hpack::Decoder::new(),
+        }
     }
 }
 
@@ -26,12 +41,10 @@ impl Transport {
         self.stream.read_exact(&mut preface).await.unwrap();
         assert_eq!(preface, PREFACE);
         let client_settings = self.read_frame().await?;
-        assert_eq!(client_settings.r#type, 0x04);
-        let server_settings = Frame {
-            r#type: 0x04,
+        // assert_eq!(client_settings.r#type, 0x04);
+        let server_settings = Frame::Settings {
             flags: 0,
-            stream_id: 0,
-            payload: vec![],
+            items: vec![],
         };
         self.send_frame(&server_settings).await?;
         tracing::debug!("preface exchanged");
@@ -42,31 +55,16 @@ impl Transport {
         let mut header = [0u8; 9];
         self.stream.read_exact(&mut header).await?;
         let len = ((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32);
-        let frame_type = header[3];
-        let flags = header[4];
-        let stream_id = ((header[5] as u32 & 0x7F) << 24)
-            | ((header[6] as u32) << 16)
-            | ((header[7] as u32) << 8)
-            | (header[8] as u32);
         let mut payload = vec![0u8; len as usize];
         self.stream.read_exact(&mut payload).await?;
-        Ok(Frame {
-            r#type: frame_type,
-            flags,
-            stream_id,
-            payload,
-        })
+        Frame::decode(&header, &payload, &mut self.hpack_decoder)
     }
 
     pub async fn send_frame(&mut self, frame: &Frame) -> std::io::Result<()> {
-        let len: u32 = frame.payload.len() as u32;
-        self.stream.write_all(&len.to_be_bytes()[1..]).await?;
-        self.stream.write_all(&[frame.r#type]).await?; // type
-        self.stream.write_all(&[frame.flags]).await?; // flags
-        self.stream
-            .write_all(&frame.stream_id.to_be_bytes())
-            .await?; // stream_id
-        self.stream.write_all(&frame.payload).await
+        tracing::info!("send frame: {frame:?}");
+        let mut buffer = Vec::with_capacity(9);
+        frame.encode(&mut buffer, &mut self.hpack_encoder)?;
+        self.stream.write_all(&buffer).await
     }
 }
 

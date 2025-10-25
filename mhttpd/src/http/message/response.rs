@@ -7,7 +7,7 @@ pub struct Response {
     protocol: Version,
     status_code: StatusCode,
     reason_phrase: Option<String>,
-    headers: Vec<Header>,
+    pub(crate) headers: Vec<Header>,
     pub(crate) body: Option<Vec<u8>>,
 }
 
@@ -52,7 +52,7 @@ impl SerDe for Response {
 
         // headers
         for header in &self.headers {
-            write!(stream, "{}\r\n", header)?;
+            write!(stream, "{:?}\r\n", header)?;
         }
         stream.write(b"\r\n")?;
         if let Some(body) = self.body.as_ref() {
@@ -76,8 +76,14 @@ mod tests {
             crate::http::StatusCode::Ok,
             None,
             vec![
-                Header::ContentType("text/plain".to_string()),
-                Header::ContentLength(body.len()),
+                Header::Literal {
+                    name: "content-type".to_string(),
+                    value: "text/plain".to_string(),
+                },
+                Header::Literal {
+                    name: "content-length".to_string(),
+                    value: body.len().to_string(),
+                },
             ],
             Some(body),
         );
@@ -86,7 +92,7 @@ mod tests {
         let s = String::from_utf8(buf).unwrap();
         assert_eq!(
             s,
-            "HTTP/1.1 200\r\nContent-Type: text/plain\r\nContent-Length: 9\r\n\r\nit works!"
+            "HTTP/1.1 200\r\ncontent-type: text/plain\r\ncontent-length: 9\r\n\r\nit works!"
         );
     }
 }

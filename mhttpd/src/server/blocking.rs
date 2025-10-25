@@ -31,8 +31,14 @@ fn process(remote_addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
             crate::http::StatusCode::Ok,
             None,
             vec![
-                Header::ContentType("text/html".to_string()),
-                Header::ContentLength(body.len()),
+                Header::Literal {
+                    name: "content-type".to_string(),
+                    value: "text/html".to_string(),
+                },
+                Header::Literal {
+                    name: "content-length".to_string(),
+                    value: body.len().to_string(),
+                },
             ],
             Some(body),
         );

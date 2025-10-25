@@ -4,7 +4,7 @@ use std::{
 };
 
 use mhttpd::http::{
-    SerDe,
+    Header, SerDe,
     v2::{Frame, Preface, flags},
 };
 
@@ -55,7 +55,7 @@ fn process(addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
     let header_frame = Frame::Headers {
         stream_id: 1,
         flags: flags::END_HEADERS,
-        items: vec![(b":status".to_vec(), b"200".to_vec())],
+        items: vec![Header::new(":status", "200")],
     };
     header_frame.write(stream.get_mut())?;
     tracing::info!("Sent HEADERS frame (200 OK)");

@@ -1,4 +1,4 @@
-use crate::http::{RequestBuilder, v2::connection::Frame};
+use crate::http::{RequestBuilder, v2::Frame};
 
 #[derive(Debug)]
 pub enum State {

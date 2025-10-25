@@ -30,7 +30,7 @@ impl RequestBuilder {
     }
 
     pub fn add_header<K: Into<String>, V: Into<String>>(&mut self, name: K, value: V) {
-        self.headers.push(Header::Custom {
+        self.headers.push(Header::Literal {
             name: name.into(),
             value: value.into(),
         });
@@ -126,8 +126,8 @@ impl SerDe for Request {
                 break;
             }
             let header: Header = s.parse()?;
-            if let Header::ContentLength(n) = header {
-                content_length = n;
+            if let Header::Literal { name: _, value } = &header {
+                content_length = value.parse().unwrap();
             }
 
             headers.push(header);

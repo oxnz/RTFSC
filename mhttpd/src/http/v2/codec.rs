@@ -52,9 +52,11 @@ impl Encode<Frame> for FrameCodec {
                 flags,
                 items,
             } => {
-                let payload = self
-                    .hpack_encoder
-                    .encode(items.iter().map(|item| (&item.0[..], &item.1[..])));
+                let payload = self.hpack_encoder.encode(
+                    items
+                        .iter()
+                        .map(|item| (item.name().as_bytes(), item.value().as_bytes())),
+                );
                 let payload_len: u32 = payload.len() as u32;
                 stream.reserve(header_len + payload_len as usize);
                 stream.put(&payload_len.to_be_bytes()[1..]);
@@ -124,7 +126,7 @@ impl Decode<Frame> for FrameCodec {
                         Frame::Headers {
                             stream_id,
                             flags,
-                            items,
+                            items: vec![],
                         }
                     }
                     FrameType::RstStream => Frame::RstStream {
