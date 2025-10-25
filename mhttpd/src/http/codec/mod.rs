@@ -7,3 +7,5 @@ pub trait Encode<Item> {
 pub trait Decode<Item> {
     fn decode(&mut self, stream: &mut BytesMut) -> std::io::Result<Option<Item>>;
 }
+
+pub trait Codec<T>: Encode<T> + Decode<T> {}
