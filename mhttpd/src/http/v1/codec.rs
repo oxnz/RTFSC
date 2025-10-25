@@ -1,6 +1,6 @@
 use bytes::BufMut;
 
-use crate::http::codec::Encode;
+use crate::http::codec::{Decode, Encode};
 
 #[derive(Debug)]
 pub struct LineCodec {
@@ -36,7 +36,7 @@ impl<T: AsRef<str>> Encode<T> for LineCodec {
     }
 }
 
-impl super::Decode<String> for LineCodec {
+impl Decode<String> for LineCodec {
     fn decode(&mut self, stream: &mut bytes::BytesMut) -> std::io::Result<Option<String>> {
         match stream[self.search_offset..]
             .iter()

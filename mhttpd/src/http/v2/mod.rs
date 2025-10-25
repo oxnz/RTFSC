@@ -7,6 +7,7 @@ pub mod transport;
 pub use frame::Frame;
 mod preface;
 pub use preface::{PREFACE, Preface};
+pub mod codec;
 mod error;
 pub mod stream;
 pub use error::Error as ErrorCode;

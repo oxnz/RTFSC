@@ -1,12 +1,21 @@
 use std::{
     collections::HashMap,
-    net::{TcpListener, ToSocketAddrs},
+    net::{TcpListener, TcpStream, ToSocketAddrs},
     os::fd::AsRawFd,
 };
 
 use eio::{Action, Event, EventQueue, Filter};
 
-use crate::http::v2::Connection;
+#[derive(Debug)]
+struct Connection {
+    stream: TcpStream,
+}
+
+impl From<TcpStream> for Connection {
+    fn from(value: TcpStream) -> Self {
+        Self { stream: value }
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Server {

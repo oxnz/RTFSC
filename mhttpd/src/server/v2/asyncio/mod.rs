@@ -1,21 +1,32 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-use hpack::{Decoder, Encoder};
 use tokio::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
     task::JoinSet,
 };
 
-use crate::http::{
-    Header, Request, RequestBuilder, Response,
-    v2::{
-        FrameType, flags,
-        transport::{Frame, Transport},
-    },
-};
+use crate::http::{Header, Request, RequestBuilder, Response, v2::transport::Transport};
+
+#[derive(Debug, Default)]
+pub struct Router {}
+
+impl Router {
+    pub async fn handle_request(&self, request: Request) -> std::io::Result<Response> {
+        tracing::info!("handle request: {request:?}");
+        let content = b"it works!".to_vec();
+        Ok(Response::new(
+            crate::http::Version::Http("2.0".to_string()),
+            crate::http::StatusCode::Ok,
+            None,
+            vec![Header::ContentLength(content.len())],
+            Some(content),
+        ))
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Server {
+    router: Arc<Router>,
     workers: JoinSet<()>,
 }
 
@@ -26,8 +37,9 @@ impl Server {
         loop {
             match socket.accept().await {
                 Ok((stream, _remote_addr)) => {
+                    let router = Arc::clone(&self.router);
                     workers.spawn(async move {
-                        if let Err(e) = Self::handle_client(stream.into()).await {
+                        if let Err(e) = Self::handle_client(stream.into(), router).await {
                             tracing::error!("{e:?}");
                         }
                     });
@@ -41,15 +53,42 @@ impl Server {
         Ok(())
     }
 
-    pub async fn handle_client(mut client: Client) -> std::io::Result<()> {
+    pub async fn handle_client(mut client: Client, router: Arc<Router>) -> std::io::Result<()> {
         tracing::debug!("client: {client:?}");
         client.exchange_preface().await?;
         tracing::debug!("preface exchanged");
+        client.process(router).await
+    }
+}
+
+#[derive(Debug)]
+pub struct Client {
+    transport: Transport,
+    streams: HashMap<u32, RequestBuilder>,
+    tasks: JoinSet<()>,
+}
+
+impl From<TcpStream> for Client {
+    fn from(value: TcpStream) -> Self {
+        Self {
+            transport: value.into(),
+            streams: HashMap::default(),
+            tasks: JoinSet::new(),
+        }
+    }
+}
+
+impl Client {
+    pub async fn exchange_preface(&mut self) -> std::io::Result<()> {
+        self.transport.exchange_preface().await
+    }
+
+    pub async fn process(&mut self, router: Arc<Router>) -> std::io::Result<()> {
         loop {
-            match client.read_request().await {
+            match self.transport.read_request().await {
                 Ok(request) => {
-                    let response = Self::handle_request(request).await?;
-                    client.send_response(response).await?;
+                    let response = router.handle_request(request).await?;
+                    self.transport.send_response(response).await?;
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                     tracing::info!("client EOF");
@@ -60,121 +99,6 @@ impl Server {
                 }
             }
         }
-        Ok(())
-    }
-
-    pub async fn handle_request(request: Request) -> std::io::Result<Response> {
-        tracing::info!("handle request: {request:?}");
-        let content = b"it works!".to_vec();
-        Ok(Response::new(
-            crate::http::Version::Http("2.0".to_string()),
-            crate::http::StatusCode::Ok,
-            None,
-            vec![Header::ContentLength(content.len())],
-            Some(content),
-        ))
-    }
-}
-
-#[derive(Debug)]
-pub struct Client {
-    transport: Transport,
-    streams: HashMap<u32, RequestBuilder>,
-}
-
-impl From<TcpStream> for Client {
-    fn from(value: TcpStream) -> Self {
-        Self {
-            transport: value.into(),
-            streams: HashMap::default(),
-        }
-    }
-}
-
-impl Client {
-    pub async fn exchange_preface(&mut self) -> std::io::Result<()> {
-        self.transport.exchange_preface().await
-    }
-
-    pub async fn read_request(&mut self) -> std::io::Result<Request> {
-        tracing::info!("read request");
-        loop {
-            let frame = self.transport.read_frame().await?;
-            tracing::info!("read frame: {frame:?}");
-            match FrameType::from(frame.r#type) {
-                FrameType::Data => {
-                    let request_builder = self
-                        .streams
-                        .entry(frame.stream_id)
-                        .or_insert(Default::default());
-                    request_builder.extend_body(frame.payload.as_slice());
-                    if 0 != frame.flags & flags::END_STREAM {
-                        return std::mem::take(request_builder).build();
-                    }
-                }
-                FrameType::Headers => {
-                    let request_builder = self
-                        .streams
-                        .entry(frame.stream_id)
-                        .or_insert(Default::default());
-                    let mut decoder = Decoder::new();
-                    for (k, v) in decoder.decode(&frame.payload).unwrap() {
-                        let key = str::from_utf8(&k).unwrap();
-                        let value = str::from_utf8(&v).unwrap();
-                        match key {
-                            ":method" => {
-                                request_builder.set_method(value.parse().unwrap());
-                            }
-                            ":scheme" => {
-                                request_builder.set_scheme(value.into());
-                            }
-                            ":authority" => {
-                                request_builder.set_authority(value.to_string());
-                            }
-                            ":path" => {
-                                request_builder.set_path(value.to_string());
-                            }
-                            _ => {
-                                request_builder.add_header(key, value);
-                            }
-                        }
-                    }
-                    if 0 != frame.flags & flags::END_STREAM {
-                        return std::mem::take(request_builder).build();
-                    }
-                }
-                FrameType::Settings => {
-                    tracing::info!("ignore settings");
-                }
-                FrameType::WindowUpdate => {
-                    tracing::info!("window update: {frame:?}");
-                }
-                _ => {
-                    tracing::error!("unknown frame: {frame:?}");
-                }
-            }
-        }
-        todo!()
-    }
-
-    pub async fn send_response(&mut self, response: Response) -> std::io::Result<()> {
-        tracing::info!("send reponse: {response:?}");
-        let mut encoder = Encoder::new();
-        let payload = encoder.encode([(b":status".as_slice(), b"200".as_slice())]);
-        let header_frame = Frame {
-            r#type: 0x01,
-            flags: flags::END_HEADERS,
-            stream_id: 1,
-            payload,
-        };
-        self.transport.send_frame(&header_frame).await?;
-        let data_frame = Frame {
-            r#type: 0x00,
-            flags: flags::END_STREAM,
-            stream_id: 1,
-            payload: response.body.unwrap_or_default(),
-        };
-        self.transport.send_frame(&data_frame).await?;
         Ok(())
     }
 }

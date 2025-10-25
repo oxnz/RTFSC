@@ -1,6 +1,3 @@
-pub mod v1;
-pub mod v2;
-
 use bytes::BytesMut;
 
 pub trait Encode<Item> {

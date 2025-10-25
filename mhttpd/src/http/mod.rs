@@ -6,6 +6,7 @@ mod version;
 pub use scheme::Scheme;
 pub mod codec;
 mod status;
+pub mod v1;
 pub mod v2;
 pub use header::Header;
 pub use message::{Request, RequestBuilder, Response, SerDe};
