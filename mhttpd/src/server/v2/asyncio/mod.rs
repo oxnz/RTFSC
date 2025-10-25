@@ -14,15 +14,12 @@ impl Router {
     pub async fn handle_request(&self, request: Request) -> std::io::Result<Response> {
         tracing::info!("handle request: {request:?}");
         let content = b"it works!".to_vec();
-        // tokio::time::sleep(Duration::from_secs(4)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
         Ok(Response::new(
             crate::http::Version::Http("2.0".to_string()),
             crate::http::StatusCode::Ok,
             None,
-            vec![Header::Literal {
-                name: "content-length".to_string(),
-                value: content.len().to_string(),
-            }],
+            vec![Header::new("content-length", content.len().to_string())],
             Some(content),
         ))
     }
@@ -36,6 +33,7 @@ pub struct Server {
 impl Server {
     pub async fn serve<A: ToSocketAddrs>(&mut self, addr: A) -> std::io::Result<()> {
         let socket = TcpListener::bind(addr).await?;
+        tracing::info!("serving at: {:?}", socket);
         let mut workers = JoinSet::new();
         loop {
             tokio::select! {
@@ -155,6 +153,29 @@ mod tests {
                 "-v",
                 "--silent",
                 "127.0.0.1:8000",
+            ])
+            .output()
+            .unwrap();
+        let stdout = output.stdout;
+        let stderr = output.stderr;
+        unsafe {
+            println!("stdout:\n{}", str::from_utf8_unchecked(&stdout));
+            eprintln!("stderr:\n{}", str::from_utf8_unchecked(&stderr));
+        }
+    }
+
+    #[test]
+    fn test_multiplex() {
+        let output = std::process::Command::new("curl")
+            .args([
+                "--http2-prior-knowledge",
+                "--parallel",
+                "-v",
+                "--silent",
+                "127.0.0.1:8000/1",
+                "127.0.0.1:8000/2",
+                "127.0.0.1:8000/3",
+                "127.0.0.1:8000/4",
             ])
             .output()
             .unwrap();

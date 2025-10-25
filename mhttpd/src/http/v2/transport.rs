@@ -5,7 +5,7 @@ use tokio::{
     net::TcpStream,
 };
 
-use crate::http::v2::Frame;
+use crate::http::v2::{Frame, settings::Setting};
 
 /**
  * socket
@@ -41,10 +41,15 @@ impl Transport {
         self.stream.read_exact(&mut preface).await.unwrap();
         assert_eq!(preface, PREFACE);
         let client_settings = self.read_frame().await?;
+        tracing::info!("client settings: {:?}", client_settings);
         // assert_eq!(client_settings.r#type, 0x04);
+
         let server_settings = Frame::Settings {
             flags: 0,
-            items: vec![],
+            items: vec![
+                Setting::MaxConcurrentStreams(10),
+                Setting::InitialWindowSize(10485760),
+            ],
         };
         self.send_frame(&server_settings).await?;
         tracing::debug!("preface exchanged");

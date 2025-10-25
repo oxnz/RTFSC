@@ -71,4 +71,14 @@ mod tests {
 
         assert!(Header::from_str("Invalid").is_err());
     }
+
+    #[test]
+    fn test_new() {
+        let header = Header::new(":status", "200");
+        let h2 = Header::Pseudo {
+            name: ":status".to_string(),
+            value: "200".to_string(),
+        };
+        println!("{header:?}, {h2:?}");
+    }
 }

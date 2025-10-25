@@ -5,7 +5,7 @@ use crate::http::{Header, SerDe, StatusCode, Version};
 #[derive(Debug)]
 pub struct Response {
     protocol: Version,
-    status_code: StatusCode,
+    pub(crate) status_code: StatusCode,
     reason_phrase: Option<String>,
     pub(crate) headers: Vec<Header>,
     pub(crate) body: Option<Vec<u8>>,

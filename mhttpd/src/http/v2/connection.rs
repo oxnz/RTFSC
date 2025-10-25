@@ -28,7 +28,7 @@ impl Connection {
     }
 
     pub async fn read_request(&mut self) -> std::io::Result<(u32, Request)> {
-        tracing::info!("read request");
+        tracing::info!("READ request");
         loop {
             let frame = self.transport.read_frame().await?;
             tracing::info!("read frame: {frame:?}");
@@ -119,10 +119,15 @@ impl Connection {
         response: Response,
     ) -> std::io::Result<()> {
         tracing::info!("send reponse: {response:?}");
+        let mut headers = response.headers;
+        headers.insert(
+            0,
+            crate::http::Header::new(":status", response.status_code.to_string()),
+        );
         let header_frame = Frame::Headers {
             stream_id,
             flags: flags::END_HEADERS,
-            items: response.headers,
+            items: headers,
         };
         self.transport.send_frame(&header_frame).await?;
         let data_frame: Frame = Frame::Data {
