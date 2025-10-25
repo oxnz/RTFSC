@@ -1,6 +1,6 @@
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
-pub enum Error {
+pub enum ErrorCode {
     NoError = 0x00,
     ProtocolError = 0x01,
     InternalError = 0x02,
@@ -17,14 +17,14 @@ pub enum Error {
     Http11Required = 0x0d,
 }
 
-impl From<u32> for Error {
+impl From<u32> for ErrorCode {
     fn from(value: u32) -> Self {
         unsafe { std::mem::transmute(value) }
     }
 }
 
-impl From<Error> for u32 {
-    fn from(value: Error) -> Self {
+impl From<ErrorCode> for u32 {
+    fn from(value: ErrorCode) -> Self {
         unsafe { std::mem::transmute(value) }
     }
 }
@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_conv() {
-        assert!(matches!(1u32.into(), Error::ProtocolError));
-        assert_eq!(u32::from(Error::ProtocolError), 1u32);
+        assert!(matches!(1u32.into(), ErrorCode::ProtocolError));
+        assert_eq!(u32::from(ErrorCode::ProtocolError), 1u32);
     }
 }

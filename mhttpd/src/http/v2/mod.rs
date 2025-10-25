@@ -10,6 +10,6 @@ pub use preface::{PREFACE, Preface};
 pub mod codec;
 mod error;
 pub mod stream;
-pub use error::Error as ErrorCode;
+pub use error::ErrorCode;
 
 pub use frame::Type as FrameType;
