@@ -1,5 +1,6 @@
-use crate::http::Header;
+use crate::http::{RequestBuilder, v2::connection::Frame};
 
+#[derive(Debug)]
 pub enum State {
     Idle,
     Open,
@@ -8,9 +9,23 @@ pub enum State {
     Closed,
 }
 
+#[derive(Debug)]
 pub struct Stream {
     id: u32,
     state: State,
-    headers: Vec<Header>,
-    body: Vec<u8>,
+    pub(crate) request_builder: RequestBuilder,
+}
+
+impl Stream {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            state: State::Idle,
+            request_builder: RequestBuilder::default(),
+        }
+    }
+
+    pub fn process(&mut self, frame: &Frame) -> std::io::Result<()> {
+        Ok(())
+    }
 }

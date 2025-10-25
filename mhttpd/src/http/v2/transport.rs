@@ -1,128 +1,97 @@
-use std::collections::HashMap;
-
-use hpack::{Decoder, Encoder};
-use tokio::net::TcpStream;
-
-use crate::http::{
-    Request, RequestBuilder, Response,
-    v2::{Connection, FrameType, flags},
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
 };
 
+use crate::http::v2::connection::Frame;
+
+/**
+ * socket
+ * codec
+ */
 #[derive(Debug)]
 pub struct Transport {
-    connection: Connection,
-    streams: HashMap<u32, RequestBuilder>,
+    stream: TcpStream,
 }
 
 impl From<TcpStream> for Transport {
     fn from(value: TcpStream) -> Self {
-        Self {
-            connection: value.into(),
-            streams: HashMap::default(),
-        }
+        Self { stream: value }
     }
 }
 
 impl Transport {
     pub async fn exchange_preface(&mut self) -> std::io::Result<()> {
-        self.connection.exchange_preface().await
+        let mut preface = [0u8; PREFACE.len()];
+        self.stream.read_exact(&mut preface).await.unwrap();
+        assert_eq!(preface, PREFACE);
+        let client_settings = self.read_frame().await?;
+        assert_eq!(client_settings.r#type, 0x04);
+        let server_settings = Frame {
+            r#type: 0x04,
+            flags: 0,
+            stream_id: 0,
+            payload: vec![],
+        };
+        self.send_frame(&server_settings).await?;
+        tracing::debug!("preface exchanged");
+        Ok(())
     }
 
     pub async fn read_frame(&mut self) -> std::io::Result<Frame> {
-        self.connection.read_frame().await
+        let mut header = [0u8; 9];
+        self.stream.read_exact(&mut header).await?;
+        let len = ((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32);
+        let frame_type = header[3];
+        let flags = header[4];
+        let stream_id = ((header[5] as u32 & 0x7F) << 24)
+            | ((header[6] as u32) << 16)
+            | ((header[7] as u32) << 8)
+            | (header[8] as u32);
+        let mut payload = vec![0u8; len as usize];
+        self.stream.read_exact(&mut payload).await?;
+        Ok(Frame {
+            r#type: frame_type,
+            flags,
+            stream_id,
+            payload,
+        })
     }
 
     pub async fn send_frame(&mut self, frame: &Frame) -> std::io::Result<()> {
-        self.connection.send_frame(frame).await
-    }
-
-    pub async fn read_request(&mut self) -> std::io::Result<Request> {
-        tracing::info!("read request");
-        loop {
-            let frame = self.read_frame().await?;
-            tracing::info!("read frame: {frame:?}");
-            match FrameType::from(frame.r#type) {
-                FrameType::Data => {
-                    let request_builder = self
-                        .streams
-                        .entry(frame.stream_id)
-                        .or_insert(Default::default());
-                    request_builder.extend_body(frame.payload.as_slice());
-                    if 0 != frame.flags & flags::END_STREAM {
-                        return std::mem::take(request_builder).build();
-                    }
-                }
-                FrameType::Headers => {
-                    let request_builder = self
-                        .streams
-                        .entry(frame.stream_id)
-                        .or_insert(Default::default());
-                    let mut decoder = Decoder::new();
-                    for (k, v) in decoder.decode(&frame.payload).unwrap() {
-                        let key = str::from_utf8(&k).unwrap();
-                        let value = str::from_utf8(&v).unwrap();
-                        match key {
-                            ":method" => {
-                                request_builder.set_method(value.parse().unwrap());
-                            }
-                            ":scheme" => {
-                                request_builder.set_scheme(value.into());
-                            }
-                            ":authority" => {
-                                request_builder.set_authority(value.to_string());
-                            }
-                            ":path" => {
-                                request_builder.set_path(value.to_string());
-                            }
-                            _ => {
-                                request_builder.add_header(key, value);
-                            }
-                        }
-                    }
-                    if 0 != frame.flags & flags::END_STREAM {
-                        return std::mem::take(request_builder).build();
-                    }
-                }
-                FrameType::Settings => {
-                    tracing::info!("ignore settings");
-                }
-                FrameType::WindowUpdate => {
-                    tracing::info!("window update: {frame:?}");
-                }
-                _ => {
-                    tracing::error!("unknown frame: {frame:?}");
-                }
-            }
-        }
-        todo!()
-    }
-
-    pub async fn send_response(&mut self, response: Response) -> std::io::Result<()> {
-        tracing::info!("send reponse: {response:?}");
-        let mut encoder = Encoder::new();
-        let payload = encoder.encode([(b":status".as_slice(), b"200".as_slice())]);
-        let header_frame = Frame {
-            r#type: 0x01,
-            flags: flags::END_HEADERS,
-            stream_id: 1,
-            payload,
-        };
-        self.send_frame(&header_frame).await?;
-        let data_frame = Frame {
-            r#type: 0x00,
-            flags: flags::END_STREAM,
-            stream_id: 1,
-            payload: response.body.unwrap_or_default(),
-        };
-        self.send_frame(&data_frame).await?;
-        Ok(())
+        let len: u32 = frame.payload.len() as u32;
+        self.stream.write_all(&len.to_be_bytes()[1..]).await?;
+        self.stream.write_all(&[frame.r#type]).await?; // type
+        self.stream.write_all(&[frame.flags]).await?; // flags
+        self.stream
+            .write_all(&frame.stream_id.to_be_bytes())
+            .await?; // stream_id
+        self.stream.write_all(&frame.payload).await
     }
 }
 
-#[derive(Debug)]
-pub struct Frame {
-    pub(crate) r#type: u8,
-    pub(crate) flags: u8,
-    pub(crate) stream_id: u32,
-    pub(crate) payload: Vec<u8>,
+const PREFACE: &'static [u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_upgrade() {
+        let raw = r#"
+GET / HTTP/1.1
+Host: localhost:8000
+User-Agent: curl/8.7.1
+Accept: */*
+Connection: Upgrade, HTTP2-Settings
+Upgrade: h2c
+HTTP2-Settings: AAMAAABkAAQAoAAAAAIAAAAA
+
+
+        "#;
+        let v = [
+            71, 69, 84, 32, 47, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58,
+            32, 108, 111,
+        ];
+        let s = str::from_utf8(v.as_slice());
+        println!("{s:?}");
+    }
 }

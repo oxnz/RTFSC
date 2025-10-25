@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use tokio::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
     task::JoinSet,
 };
 
-use crate::http::{Header, Request, Response, v2::transport::Transport};
+use crate::http::{Header, Request, Response, v2::connection::Connection};
 
 #[derive(Debug, Default)]
 pub struct Router {}
@@ -14,6 +14,7 @@ impl Router {
     pub async fn handle_request(&self, request: Request) -> std::io::Result<Response> {
         tracing::info!("handle request: {request:?}");
         let content = b"it works!".to_vec();
+        tokio::time::sleep(Duration::from_secs(4)).await;
         Ok(Response::new(
             crate::http::Version::Http("2.0".to_string()),
             crate::http::StatusCode::Ok,
@@ -66,14 +67,14 @@ impl Server {
 
 #[derive(Debug)]
 pub struct Client {
-    transport: Transport,
+    connection: Connection,
     tasks: JoinSet<std::io::Result<Response>>,
 }
 
 impl From<TcpStream> for Client {
     fn from(value: TcpStream) -> Self {
         Self {
-            transport: value.into(),
+            connection: value.into(),
             tasks: JoinSet::new(),
         }
     }
@@ -81,7 +82,7 @@ impl From<TcpStream> for Client {
 
 impl Client {
     pub async fn exchange_preface(&mut self) -> std::io::Result<()> {
-        self.transport.exchange_preface().await
+        self.connection.exchange_preface().await
     }
 
     pub async fn process(&mut self, router: Arc<Router>) -> std::io::Result<()> {
@@ -92,7 +93,7 @@ impl Client {
                         Ok(result) => {
                             match result {
                                 Ok(response) => {
-                                    if let Err(e) = self.transport.send_response(response).await {
+                                    if let Err(e) = self.connection.send_response(response).await {
                                         tracing::error!("send response: {e:?}");
                                     }
                                 }
@@ -106,7 +107,7 @@ impl Client {
                         }
                     }
                 }
-                result = self.transport.read_request() => {
+                result = self.connection.read_request() => {
                     match result {
                         Ok(request) => {
                             let router = Arc::clone(&router);

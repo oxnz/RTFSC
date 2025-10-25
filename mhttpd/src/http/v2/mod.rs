@@ -1,9 +1,9 @@
-mod connection;
 pub mod flags;
-pub use connection::Connection;
+mod transport;
+pub use transport::Transport;
+pub mod connection;
 mod frame;
 pub mod settings;
-pub mod transport;
 pub use frame::Frame;
 mod preface;
 pub use preface::{PREFACE, Preface};
