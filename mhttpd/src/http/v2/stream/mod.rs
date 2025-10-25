@@ -12,7 +12,7 @@ pub enum State {
 #[derive(Debug)]
 pub struct Stream {
     id: u32,
-    state: State,
+    pub(crate) state: State,
     pub(crate) request_builder: RequestBuilder,
 }
 

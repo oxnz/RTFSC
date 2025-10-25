@@ -78,10 +78,12 @@ impl Encode<Frame> for FrameCodec {
                 stream.put_u32(stream_id);
                 stream.put(data.as_slice());
             }
-            Frame::RstStream { error_code } => {
+            Frame::RstStream {
+                stream_id,
+                error_code,
+            } => {
                 let payload_len = 4u32;
                 stream.reserve(header_len + payload_len as usize);
-                let stream_id = 0u32;
                 let data = u32::from(error_code);
                 stream.put(&payload_len.to_be_bytes()[1..]);
                 stream.put_u8(FrameType::RstStream.into());
@@ -130,6 +132,7 @@ impl Decode<Frame> for FrameCodec {
                         }
                     }
                     FrameType::RstStream => Frame::RstStream {
+                        stream_id,
                         error_code: ErrorCode::from(u32::from_be_bytes(
                             *payload.first_chunk::<4>().unwrap(),
                         )),

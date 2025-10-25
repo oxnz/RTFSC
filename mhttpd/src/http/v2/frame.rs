@@ -69,6 +69,7 @@ pub enum Frame {
         items: Vec<Header>,
     },
     RstStream {
+        stream_id: u32,
         error_code: ErrorCode,
     },
     Settings {
@@ -129,6 +130,7 @@ impl Frame {
                 }
             },
             Type::RstStream => Ok(Self::RstStream {
+                stream_id,
                 error_code: ErrorCode::from(u32::from_be_bytes(
                     *payload.first_chunk::<4>().unwrap(),
                 )),
@@ -228,9 +230,11 @@ impl Frame {
                 stream.write_all(&stream_id.to_be_bytes())?;
                 stream.write_all(&data)?;
             }
-            Frame::RstStream { error_code } => {
+            Frame::RstStream {
+                stream_id,
+                error_code,
+            } => {
                 let len = 4u32;
-                let stream_id = 0u32;
                 let data = u32::from(*error_code);
                 stream.write_all(&len.to_be_bytes()[1..])?;
                 stream.write_all(&[Type::RstStream.into()])?; // type
@@ -287,6 +291,7 @@ impl SerDe for Frame {
                 })
             }
             Type::RstStream => Ok(Self::RstStream {
+                stream_id,
                 error_code: ErrorCode::from(u32::from_be_bytes(
                     *payload.first_chunk::<4>().unwrap(),
                 )),
@@ -378,9 +383,11 @@ impl SerDe for Frame {
                 stream.write_all(&stream_id.to_be_bytes())?;
                 stream.write_all(&data)?;
             }
-            Frame::RstStream { error_code } => {
+            Frame::RstStream {
+                stream_id,
+                error_code,
+            } => {
                 let len = 4u32;
-                let stream_id = 0u32;
                 let data = u32::from(*error_code);
                 stream.write_all(&len.to_be_bytes()[1..])?;
                 stream.write_all(&[Type::RstStream.into()])?; // type

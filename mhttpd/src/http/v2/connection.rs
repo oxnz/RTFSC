@@ -44,6 +44,7 @@ impl Connection {
                         .or_insert(Stream::new(stream_id));
                     stream.request_builder.extend_body(&data);
                     if 0 != flags & flags::END_STREAM {
+                        stream.state = crate::http::v2::stream::State::Closed;
                         return std::mem::take(&mut stream.request_builder)
                             .build()
                             .map(|x| (stream_id, x));
@@ -80,12 +81,19 @@ impl Connection {
                         }
                     }
                     if 0 != flags & flags::END_STREAM {
+                        stream.state = crate::http::v2::stream::State::HalfClosedRemote;
                         return std::mem::take(&mut stream.request_builder)
                             .build()
                             .map(|x| (stream_id, x));
                     }
                 }
-                crate::http::v2::Frame::RstStream { error_code } => {
+                crate::http::v2::Frame::RstStream {
+                    stream_id,
+                    error_code,
+                } => {
+                    if let Some(stream) = self.streams.get_mut(&stream_id) {
+                        stream.state = crate::http::v2::stream::State::Closed;
+                    }
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::ConnectionReset,
                         "stream reset",
