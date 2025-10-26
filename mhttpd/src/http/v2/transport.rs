@@ -1,8 +1,11 @@
 use std::vec;
 
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
+    io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter},
+    net::{
+        TcpStream,
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+    },
 };
 
 use crate::http::{
@@ -15,23 +18,27 @@ use crate::http::{
  * codec
  */
 pub struct Transport {
-    stream: TcpStream,
+    reader: BufReader<OwnedReadHalf>,
+    writer: BufWriter<OwnedWriteHalf>,
     frame_codec: FrameCodec,
 }
 
 impl std::fmt::Debug for Transport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Transport")
-            .field("stream", &self.stream)
+            .field("reader", &self.reader)
+            .field("writer", &self.writer)
             .finish()
     }
 }
 
 impl From<TcpStream> for Transport {
     fn from(value: TcpStream) -> Self {
+        let (read_half, write_half) = value.into_split();
         Self {
-            stream: value,
             frame_codec: Default::default(),
+            reader: BufReader::new(read_half),
+            writer: BufWriter::new(write_half),
         }
     }
 }
@@ -39,7 +46,7 @@ impl From<TcpStream> for Transport {
 impl Transport {
     pub async fn exchange_preface(&mut self) -> std::io::Result<()> {
         let mut preface = [0u8; PREFACE.len()];
-        self.stream.read_exact(&mut preface).await.unwrap();
+        self.reader.read_exact(&mut preface).await.unwrap();
         assert_eq!(preface, PREFACE);
         let client_settings = self.read_frame().await?;
         tracing::info!("client settings: {:?}", client_settings);
@@ -59,7 +66,7 @@ impl Transport {
 
     pub async fn read_frame(&mut self) -> std::io::Result<Frame> {
         let mut header = [0u8; 9];
-        self.stream.read_exact(&mut header).await?;
+        self.reader.read_exact(&mut header).await?;
         let payload_len =
             (((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32)) as usize;
         if payload_len > 0 {
@@ -68,7 +75,7 @@ impl Transport {
             unsafe {
                 buffer.set_len(9 + payload_len);
             }
-            self.stream.read_exact(&mut buffer[header.len()..]).await?;
+            self.reader.read_exact(&mut buffer[header.len()..]).await?;
             tracing::debug!("read raw frame: {buffer:?}");
             self.frame_codec.decode(&mut std::io::Cursor::new(buffer))
         } else {
@@ -81,7 +88,8 @@ impl Transport {
         let mut buffer = Vec::with_capacity(9);
         self.frame_codec.encode(frame, &mut buffer)?;
         tracing::debug!("send raw frame: {buffer:?}");
-        self.stream.write_all(&buffer).await
+        self.writer.write_all(&buffer).await?;
+        self.writer.flush().await
     }
 }
 

@@ -88,6 +88,14 @@ impl Connection {
                             .map(|x| (stream_id, x));
                     }
                 }
+                Frame::Priority {
+                    stream_id,
+                    exclusive,
+                    stream_dependency,
+                    weight,
+                } => {
+                    todo!()
+                }
                 Frame::RstStream {
                     stream_id,
                     error_code,
@@ -112,14 +120,37 @@ impl Connection {
                             .await?;
                     }
                 }
+                Frame::PushPromise {
+                    stream_id,
+                    end_headers,
+                    headers,
+                    pad_len,
+                    promised_stream_id,
+                } => {
+                    todo!()
+                }
+                Frame::Ping { ack, opaque_data } => {
+                    todo!()
+                }
+                Frame::GoAway {
+                    last_stream_id,
+                    error_code,
+                    debug_data,
+                } => {
+                    todo!()
+                }
                 Frame::WindowUpdate {
                     stream_id,
                     increment,
                 } => {
                     tracing::error!("todo, ignore windowUpdate for now");
                 }
-                _ => {
-                    tracing::warn!("ignore frame: {frame:?}");
+                Frame::Continuation {
+                    end_headers,
+                    stream_id,
+                    headers,
+                } => {
+                    todo!()
                 }
             }
         }
