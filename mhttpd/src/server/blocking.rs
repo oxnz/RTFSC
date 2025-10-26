@@ -3,7 +3,7 @@ use std::{
     net::{SocketAddr, TcpListener, TcpStream},
 };
 
-use crate::http::{Header, Request, Response, ResponseBuilder, SerDe};
+use crate::http::{Header, Request, ResponseBuilder, SerDe};
 
 pub fn serve() -> std::io::Result<()> {
     let socket = TcpListener::bind("127.0.0.1:8000")?;
@@ -28,7 +28,7 @@ fn process(remote_addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
         let body = br#"<html lang="en"><body><h1>it works!</h1></body></html>"#.to_vec();
         let response = ResponseBuilder::default()
             .version(crate::http::Version::Http11)
-            .status(crate::http::StatusCode::Ok)
+            .status(crate::http::Status::OK)
             .headers(vec![
                 Header::Literal {
                     name: "content-type".to_string(),

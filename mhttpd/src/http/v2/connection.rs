@@ -162,7 +162,7 @@ impl Connection {
         let mut headers = response.headers;
         headers.insert(
             0,
-            crate::http::Header::new(":status", response.status_code.to_string()),
+            crate::http::Header::new(":status", response.status.0.to_string()),
         );
         let header_frame = Frame::Headers {
             stream_id,

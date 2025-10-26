@@ -17,7 +17,7 @@ impl Router {
         tokio::time::sleep(Duration::from_secs(2)).await;
         ResponseBuilder::default()
             .version(crate::http::Version::Http2)
-            .status(crate::http::StatusCode::Ok)
+            .status(crate::http::Status::OK)
             .headers(vec![Header::new(
                 "content-length",
                 content.len().to_string(),

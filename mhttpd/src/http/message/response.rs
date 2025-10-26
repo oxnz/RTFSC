@@ -1,10 +1,9 @@
-use crate::http::{Header, StatusCode, Version};
+use crate::http::{Header, Status, Version};
 
 #[derive(Debug)]
 pub struct Response {
     pub(crate) version: Version,
-    pub(crate) status_code: StatusCode,
-    pub(crate) reason_phrase: Option<String>,
+    pub(crate) status: Status,
     pub(crate) headers: Vec<Header>,
     pub(crate) body: Option<Vec<u8>>,
 }
@@ -12,7 +11,7 @@ pub struct Response {
 #[derive(Debug, Default)]
 pub struct ResponseBuilder {
     version: Option<Version>,
-    status: Option<StatusCode>,
+    status: Option<Status>,
     headers: Option<Vec<Header>>,
     body: Option<Vec<u8>>,
 }
@@ -23,7 +22,7 @@ impl ResponseBuilder {
         self
     }
 
-    pub fn status(mut self, status: StatusCode) -> Self {
+    pub fn status(mut self, status: Status) -> Self {
         self.status = Some(status);
         self
     }
@@ -53,8 +52,7 @@ impl ResponseBuilder {
         ))?;
         Ok(Response {
             version,
-            status_code,
-            reason_phrase: None,
+            status: status_code,
             headers,
             body: self.body,
         })

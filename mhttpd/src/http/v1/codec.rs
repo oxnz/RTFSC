@@ -97,15 +97,13 @@ impl SerDe for Response {
 
     fn write<W: Write>(&self, stream: &mut W) -> std::io::Result<()> {
         // status line
-        if let Some(reason_phrase) = &self.reason_phrase {
-            write!(
-                stream,
-                "{} {} {}\r\n",
-                self.version, self.status_code, reason_phrase
-            )?;
-        } else {
-            write!(stream, "{} {}\r\n", self.version, self.status_code)?;
-        }
+        write!(
+            stream,
+            "{} {} {}\r\n",
+            self.version,
+            self.status.0,
+            self.status.reason_phrase()
+        )?;
 
         // headers
         for header in &self.headers {
@@ -143,8 +141,7 @@ mod tests {
         let body = b"it works!".to_vec();
         let response = Response {
             version: crate::http::Version::Http11,
-            status_code: crate::http::StatusCode::Ok,
-            reason_phrase: None,
+            status: crate::http::Status::OK,
             headers: vec![
                 Header::Literal {
                     name: "content-type".to_string(),
