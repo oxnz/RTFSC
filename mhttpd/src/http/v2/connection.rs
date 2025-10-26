@@ -130,7 +130,7 @@ impl Connection {
                     todo!()
                 }
                 Frame::Ping { ack, opaque_data } => {
-                    todo!()
+                    self.transport.send_frame(Frame::Ping { ack: true, opaque_data }).await?;
                 }
                 Frame::GoAway {
                     last_stream_id,
