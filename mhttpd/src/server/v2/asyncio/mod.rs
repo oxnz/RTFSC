@@ -61,7 +61,6 @@ impl Server {
     pub async fn handle_client(mut client: Client, router: Arc<Router>) -> std::io::Result<()> {
         tracing::debug!("client: {client:?}");
         client.exchange_preface().await?;
-        tracing::debug!("preface exchanged");
         client.process(router).await
     }
 }
@@ -138,7 +137,7 @@ mod tests {
     #[tokio::test]
     async fn test_serve() {
         tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
+            .with_max_level(tracing::Level::DEBUG)
             .init();
         let mut server = Server::default();
         let addr = "127.0.0.1:8000";

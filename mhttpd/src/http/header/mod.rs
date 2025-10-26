@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+#[derive(Debug)]
 pub enum Header {
     // V2
     Pseudo { name: String, value: String },
@@ -13,9 +14,9 @@ impl Header {
         name.make_ascii_lowercase();
         let value = value.into();
         if name.starts_with(':') {
-            Self::Literal { name, value }
-        } else {
             Self::Pseudo { name, value }
+        } else {
+            Self::Literal { name, value }
         }
     }
 
@@ -44,15 +45,6 @@ impl FromStr for Header {
                 std::io::ErrorKind::InvalidData,
                 "':' not found",
             )),
-        }
-    }
-}
-
-impl std::fmt::Debug for Header {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Header::Literal { name, value } => write!(f, "{}: {}", name, value),
-            Header::Pseudo { name, value } => write!(f, "{}: {}", name, value),
         }
     }
 }

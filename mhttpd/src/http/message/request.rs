@@ -29,11 +29,29 @@ impl RequestBuilder {
         self.path = Some(path)
     }
 
-    pub fn add_header<K: Into<String>, V: Into<String>>(&mut self, name: K, value: V) {
-        self.headers.push(Header::Literal {
-            name: name.into(),
-            value: value.into(),
-        });
+    pub fn add_header(&mut self, header: Header) {
+        match &header {
+            Header::Pseudo { name, value } => match name.as_str() {
+                ":method" => {
+                    self.set_method(value.parse().expect("invalid method"));
+                }
+                ":scheme" => {
+                    self.set_scheme(Scheme::from(value.as_ref()));
+                }
+                ":authority" => {
+                    self.set_authority(value.to_string());
+                }
+                ":path" => {
+                    self.set_path(value.to_string());
+                }
+                _ => {
+                    self.headers.push(header);
+                }
+            },
+            Header::Literal { name, value } => {
+                self.headers.push(header);
+            }
+        }
     }
 
     pub fn extend_body(&mut self, data: &[u8]) {
@@ -48,8 +66,8 @@ impl RequestBuilder {
 
     pub fn build(self) -> std::io::Result<Request> {
         Ok(Request::new(
-            self.method.unwrap(),
-            self.path.unwrap(),
+            self.method.expect("no method"),
+            self.path.expect("no path"),
             Version::Http("2.0".to_string()),
             self.headers,
             self.body,
@@ -61,7 +79,7 @@ impl RequestBuilder {
 pub struct Request {
     method: Method,
     path: String,
-    protocol: Version,
+    version: Version,
     headers: Vec<Header>,
     body: Option<Vec<u8>>,
 }
@@ -69,15 +87,15 @@ pub struct Request {
 impl Request {
     pub fn new(
         method: Method,
-        target: String,
-        protocol: Version,
+        path: String,
+        version: Version,
         headers: Vec<Header>,
         body: Option<Vec<u8>>,
     ) -> Self {
         Self {
             method,
-            path: target,
-            protocol,
+            path,
+            version,
             headers,
             body,
         }
@@ -142,7 +160,7 @@ impl SerDe for Request {
         Ok(Self {
             method,
             path: target,
-            protocol,
+            version: protocol,
             headers,
             body,
         })

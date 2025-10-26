@@ -46,17 +46,22 @@ impl From<TcpStream> for Transport {
 impl Transport {
     pub async fn exchange_preface(&mut self) -> std::io::Result<()> {
         let mut preface = [0u8; PREFACE.len()];
-        self.reader.read_exact(&mut preface).await.unwrap();
+        self.reader.read_exact(&mut preface).await?;
         assert_eq!(preface, PREFACE);
         let client_settings = self.read_frame().await?;
         tracing::info!("client settings: {:?}", client_settings);
-        // assert_eq!(client_settings.r#type, 0x04);
-
+        assert!(
+            matches!(client_settings, Frame::Settings { ack, items } if !ack && !items.is_empty())
+        );
         let server_settings = Frame::Settings {
-            ack: 0,
+            ack: false,
             items: vec![
-                Setting::MaxConcurrentStreams(10),
-                Setting::InitialWindowSize(10485760),
+                Setting::HeaderTableSize(1 << 14),
+                Setting::EnablePush(false),
+                Setting::MaxConcurrentStreams(128),
+                Setting::InitialWindowSize(1 << 23),
+                Setting::MaxFrameSize(1 << 14),
+                Setting::MaxHeaderListSize(1 << 12),
             ],
         };
         self.send_frame(server_settings).await?;

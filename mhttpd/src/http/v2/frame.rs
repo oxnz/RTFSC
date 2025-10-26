@@ -3,7 +3,7 @@ use crate::http::{
     codec::{Codec, Decode, Encode},
     v2::{ErrorCode, flags, settings::Setting},
 };
-use std::{io::Write, num::NonZero};
+use std::io::Write;
 
 pub(crate) struct RawFrame {
     r#type: Type,
@@ -41,10 +41,8 @@ impl RawFrame {
                 .map(|data| data.len())
                 .unwrap_or_default(),
         );
-        payload.write_all(&last_stream_id.to_be_bytes()).unwrap();
-        payload
-            .write_all(&(error_code as u32).to_be_bytes())
-            .unwrap();
+        payload.extend_from_slice(&last_stream_id.to_be_bytes());
+        payload.extend_from_slice(&(error_code as u32).to_be_bytes());
         if let Some(data) = additional_debug_data {
             payload.extend_from_slice(data);
         }
@@ -189,7 +187,7 @@ pub enum Frame {
         error_code: ErrorCode,
     },
     Settings {
-        ack: u8,
+        ack: bool,
         items: Vec<Setting>,
     },
     PushPromise {
@@ -284,12 +282,15 @@ impl Decode<Frame> for FrameCodec {
                     ));
                 }
             },
-            Type::RstStream => Ok(Frame::RstStream {
-                stream_id,
-                error_code: ErrorCode::from(u32::from_be_bytes(
-                    *payload.first_chunk::<4>().unwrap(),
-                )),
-            }),
+            Type::RstStream => {
+                assert_eq!(payload.len(), 4);
+                Ok(Frame::RstStream {
+                    stream_id,
+                    error_code: ErrorCode::from(u32::from_be_bytes(
+                        *payload.first_chunk::<4>().unwrap(),
+                    )),
+                })
+            }
             Type::Settings => {
                 let mut items = Vec::new();
                 let n = payload.len() / 6;
@@ -298,7 +299,10 @@ impl Decode<Frame> for FrameCodec {
                     let setting = Setting::read(&mut stream)?;
                     items.push(setting);
                 }
-                Ok(Frame::Settings { ack: flags, items })
+                Ok(Frame::Settings {
+                    ack: 0 != flags & flags::ACK,
+                    items,
+                })
             }
             Type::WindowUpdate => {
                 if payload.len() == 4 {
@@ -403,11 +407,11 @@ impl Encode<Frame> for FrameCodec {
                 stream.write_all(&stream_id.to_be_bytes())?;
                 stream.write_all(&data.to_be_bytes())?;
             }
-            Frame::Settings { ack: flags, items } => {
+            Frame::Settings { ack, items } => {
                 let len: u32 = items.len() as u32 * 6;
                 stream.write_all(&len.to_be_bytes()[1..])?;
                 stream.write_all(&[0x04])?; // type
-                stream.write_all(&[flags])?; // flags
+                stream.write_all(&[if ack { flags::ACK } else { 0 }])?; // flags
                 stream.write_all(&0u32.to_be_bytes())?; // stream_id
                 for item in items {
                     stream.write_all(&item.identifier().to_be_bytes())?;

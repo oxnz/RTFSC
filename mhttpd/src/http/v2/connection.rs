@@ -28,7 +28,6 @@ impl Connection {
     }
 
     pub async fn read_request(&mut self) -> std::io::Result<(u32, Request)> {
-        tracing::info!("READ request");
         loop {
             let frame = self.transport.read_frame().await?;
             tracing::info!("read frame: {frame:?}");
@@ -37,7 +36,7 @@ impl Connection {
                     stream_id,
                     end_stream,
                     data,
-                    pad_len,
+                    pad_len: _,
                 } => {
                     let stream = self
                         .streams
@@ -61,25 +60,7 @@ impl Connection {
                         .entry(stream_id)
                         .or_insert(Stream::new(stream_id));
                     for header in items {
-                        let key = header.name();
-                        let value = header.value();
-                        match key {
-                            ":method" => {
-                                stream.request_builder.set_method(value.parse().unwrap());
-                            }
-                            ":scheme" => {
-                                stream.request_builder.set_scheme(value.into());
-                            }
-                            ":authority" => {
-                                stream.request_builder.set_authority(value.to_string());
-                            }
-                            ":path" => {
-                                stream.request_builder.set_path(value.to_string());
-                            }
-                            _ => {
-                                stream.request_builder.add_header(key, value);
-                            }
-                        }
+                        stream.request_builder.add_header(header);
                     }
                     if 0 != flags & flags::END_STREAM {
                         stream.state = crate::http::v2::stream::State::HalfClosedRemote;
@@ -108,13 +89,14 @@ impl Connection {
                         "stream reset",
                     ));
                 }
-                Frame::Settings { ack: flags, items } => {
-                    if 0 != flags & flags::ACK {
+                Frame::Settings { ack, items } => {
+                    if ack {
                         tracing::info!("settings acked");
+                        assert!(items.is_empty());
                     } else {
                         self.transport
                             .send_frame(Frame::Settings {
-                                ack: flags::ACK,
+                                ack: true,
                                 items: vec![],
                             })
                             .await?;
@@ -130,7 +112,16 @@ impl Connection {
                     todo!()
                 }
                 Frame::Ping { ack, opaque_data } => {
-                    self.transport.send_frame(Frame::Ping { ack: true, opaque_data }).await?;
+                    if ack {
+                        tracing::info!("ping acked, data: {opaque_data:?}");
+                    } else {
+                        self.transport
+                            .send_frame(Frame::Ping {
+                                ack: true,
+                                opaque_data,
+                            })
+                            .await?;
+                    }
                 }
                 Frame::GoAway {
                     last_stream_id,
@@ -150,7 +141,13 @@ impl Connection {
                     stream_id,
                     headers,
                 } => {
-                    todo!()
+                    let stream = self
+                        .streams
+                        .entry(stream_id)
+                        .or_insert(Stream::new(stream_id));
+                    for header in headers {
+                        stream.request_builder.add_header(header);
+                    }
                 }
             }
         }
