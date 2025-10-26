@@ -4,7 +4,8 @@ use std::{
 };
 
 use mhttpd::http::{
-    Header, v2::{Frame, Preface, flags},
+    Header,
+    v2::{Frame, Preface, flags},
 };
 
 fn main() {

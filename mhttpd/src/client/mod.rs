@@ -1,4 +1,4 @@
-use crate::http::{v2::connection::Connection, Response};
+use crate::http::{Response, v2::connection::Connection};
 
 #[derive(Debug)]
 pub struct Client {
