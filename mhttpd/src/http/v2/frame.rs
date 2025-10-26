@@ -41,8 +41,10 @@ impl RawFrame {
                 .map(|data| data.len())
                 .unwrap_or_default(),
         );
-        // payload.put_u32(last_stream_id);
-        // payload.put_u32(error_code as u32);
+        payload.write_all(&last_stream_id.to_be_bytes()).unwrap();
+        payload
+            .write_all(&(error_code as u32).to_be_bytes())
+            .unwrap();
         if let Some(data) = additional_debug_data {
             payload.extend_from_slice(data);
         }
@@ -99,17 +101,16 @@ impl SerDe for RawFrame {
     }
 
     fn write<W: Write>(&self, stream: &mut W) -> std::io::Result<()> {
-        // let mut header = [0u8; 9];
-        //         stream.write_all(&len.to_be_bytes()[1..])?;
-        //         stream.write_all(&[Type::RstStream.into()])?; // type
-        //         stream.write_all(&[0])?; // flags
-        //         stream.write_all(&stream_id.to_be_bytes())?;
-        //         stream.write_all(&data.to_be_bytes())?;
-        // stream.write_all(self.header.as_slice())?;
-        // if let Some(payload) = &self.payload {
-        //     stream.write_all(&payload)?;
-        // }
-        Ok(())
+        let len = self.payload.as_ref().map(|x| x.len()).unwrap_or_default();
+        let mut buffer = Vec::with_capacity(9 + len);
+        buffer.write_all(&(len as u32).to_be_bytes()[1..])?;
+        buffer.write_all(&[Type::RstStream.into()])?; // type
+        buffer.write_all(&[0])?; // flags
+        buffer.write_all(&self.stream_id.to_be_bytes())?;
+        if let Some(data) = &self.payload {
+            buffer.write_all(data)?;
+        }
+        stream.write_all(&buffer)
     }
 }
 
