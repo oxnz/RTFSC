@@ -1,26 +1,19 @@
-use std::{
-    sync::atomic::{AtomicUsize, Ordering},
-    thread,
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[test]
 fn test_counter() {
     let counter = AtomicUsize::new(0);
 
-    let handles: Vec<_> = (0..4)
-        .map(|_| {
-            let c: &'static AtomicUsize = unsafe { std::mem::transmute(&counter) };
-            thread::spawn(move || {
+    std::thread::scope(|s| {
+        for _i in 0..4 {
+            let c = &counter;
+            s.spawn(move || {
                 for _ in 0..1_000_000 {
                     c.fetch_add(1, Ordering::Relaxed);
                 }
-            })
-        })
-        .collect();
-
-    for h in handles {
-        h.join().unwrap();
-    }
+            });
+        }
+    });
 
     assert_eq!(4000000, counter.load(Ordering::Relaxed));
 }
