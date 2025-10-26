@@ -1,98 +1,62 @@
-use std::io::{BufRead, BufWriter, Write};
-
-use crate::http::{Header, SerDe, StatusCode, Version};
+use crate::http::{Header, StatusCode, Version};
 
 #[derive(Debug)]
 pub struct Response {
-    protocol: Version,
+    pub(crate) version: Version,
     pub(crate) status_code: StatusCode,
-    reason_phrase: Option<String>,
+    pub(crate) reason_phrase: Option<String>,
     pub(crate) headers: Vec<Header>,
     pub(crate) body: Option<Vec<u8>>,
 }
 
-impl Response {
-    pub fn new(
-        protocol: Version,
-        status_code: StatusCode,
-        reason_phrase: Option<String>,
-        headers: Vec<Header>,
-        body: Option<Vec<u8>>,
-    ) -> Self {
-        Self {
-            protocol,
+#[derive(Debug, Default)]
+pub struct ResponseBuilder {
+    version: Option<Version>,
+    status: Option<StatusCode>,
+    headers: Option<Vec<Header>>,
+    body: Option<Vec<u8>>,
+}
+
+impl ResponseBuilder {
+    pub fn version(mut self, version: Version) -> Self {
+        self.version = Some(version);
+        self
+    }
+
+    pub fn status(mut self, status: StatusCode) -> Self {
+        self.status = Some(status);
+        self
+    }
+
+    pub fn headers(mut self, headers: Vec<Header>) -> Self {
+        self.headers = Some(headers);
+        self
+    }
+
+    pub fn body(mut self, body: Vec<u8>) -> Self {
+        self.body = Some(body);
+        self
+    }
+
+    pub fn build(self) -> std::io::Result<Response> {
+        let version = self.version.ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "missing version",
+        ))?;
+        let status_code = self.status.ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "missing status",
+        ))?;
+        let headers = self.headers.ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "missing headers",
+        ))?;
+        Ok(Response {
+            version,
             status_code,
-            reason_phrase,
+            reason_phrase: None,
             headers,
-            body,
-        }
-    }
-}
-
-impl SerDe for Response {
-    fn read<R: BufRead>(r: &mut R) -> std::io::Result<Self>
-    where
-        Self: Sized,
-    {
-        todo!()
-    }
-
-    fn write<W: Write>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut stream = BufWriter::new(w);
-        // status line
-        if let Some(reason_phrase) = &self.reason_phrase {
-            write!(
-                stream,
-                "{} {} {}\r\n",
-                self.protocol, self.status_code, reason_phrase
-            )?;
-        } else {
-            write!(stream, "{} {}\r\n", self.protocol, self.status_code)?;
-        }
-
-        // headers
-        for header in &self.headers {
-            write!(stream, "{:?}\r\n", header)?;
-        }
-        stream.write(b"\r\n")?;
-        if let Some(body) = self.body.as_ref() {
-            stream.write_all(&body)?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::http::SerDe;
-
-    use super::*;
-
-    #[test]
-    fn test_response_write() {
-        let body = b"it works!".to_vec();
-        let response = Response::new(
-            crate::http::Version::Http("1.1".to_string()),
-            crate::http::StatusCode::Ok,
-            None,
-            vec![
-                Header::Literal {
-                    name: "content-type".to_string(),
-                    value: "text/plain".to_string(),
-                },
-                Header::Literal {
-                    name: "content-length".to_string(),
-                    value: body.len().to_string(),
-                },
-            ],
-            Some(body),
-        );
-        let mut buf = Vec::new();
-        response.write(&mut buf).unwrap();
-        let s = String::from_utf8(buf).unwrap();
-        assert_eq!(
-            s,
-            "HTTP/1.1 200\r\ncontent-type: text/plain\r\ncontent-length: 9\r\n\r\nit works!"
-        );
+            body: self.body,
+        })
     }
 }

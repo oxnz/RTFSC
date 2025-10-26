@@ -5,7 +5,7 @@ use tokio::{
     task::JoinSet,
 };
 
-use crate::http::{Header, Request, Response, v2::connection::Connection};
+use crate::http::{Header, Request, Response, ResponseBuilder, v2::connection::Connection};
 
 #[derive(Debug, Default)]
 pub struct Router {}
@@ -15,13 +15,15 @@ impl Router {
         tracing::info!("handle request: {request:?}");
         let content = b"it works!".to_vec();
         tokio::time::sleep(Duration::from_secs(2)).await;
-        Ok(Response::new(
-            crate::http::Version::Http("2.0".to_string()),
-            crate::http::StatusCode::Ok,
-            None,
-            vec![Header::new("content-length", content.len().to_string())],
-            Some(content),
-        ))
+        ResponseBuilder::default()
+            .version(crate::http::Version::Http("2.0".to_string()))
+            .status(crate::http::StatusCode::Ok)
+            .headers(vec![Header::new(
+                "content-length",
+                content.len().to_string(),
+            )])
+            .body(content)
+            .build()
     }
 }
 

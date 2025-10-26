@@ -1,6 +1,6 @@
 use std::io::{BufRead, Write};
 
-use crate::http::{Header, Method, Request, SerDe, Version};
+use crate::http::{Header, Method, Request, Response, SerDe, Version};
 
 impl SerDe for Request {
     fn read<R: BufRead>(r: &mut R) -> std::io::Result<Self>
@@ -87,9 +87,41 @@ impl SerDe for Request {
     }
 }
 
+impl SerDe for Response {
+    fn read<R: BufRead>(r: &mut R) -> std::io::Result<Self>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn write<W: Write>(&self, stream: &mut W) -> std::io::Result<()> {
+        // status line
+        if let Some(reason_phrase) = &self.reason_phrase {
+            write!(
+                stream,
+                "{} {} {}\r\n",
+                self.version, self.status_code, reason_phrase
+            )?;
+        } else {
+            write!(stream, "{} {}\r\n", self.version, self.status_code)?;
+        }
+
+        // headers
+        for header in &self.headers {
+            write!(stream, "{:?}\r\n", header)?;
+        }
+        stream.write(b"\r\n")?;
+        if let Some(body) = self.body.as_ref() {
+            stream.write_all(&body)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::http::{Method, SerDe};
+    use crate::http::{Method, Response, SerDe};
 
     use super::*;
 
@@ -104,5 +136,33 @@ mod tests {
         let mut buffer = Vec::new();
         request.write(&mut buffer).unwrap();
         assert_eq!(input.len(), buffer.len());
+    }
+
+    #[test]
+    fn test_response_write() {
+        let body = b"it works!".to_vec();
+        let response = Response {
+            version: crate::http::Version::Http("1.1".to_string()),
+            status_code: crate::http::StatusCode::Ok,
+            reason_phrase: None,
+            headers: vec![
+                Header::Literal {
+                    name: "content-type".to_string(),
+                    value: "text/plain".to_string(),
+                },
+                Header::Literal {
+                    name: "content-length".to_string(),
+                    value: body.len().to_string(),
+                },
+            ],
+            body: Some(body),
+        };
+        let mut buffer = Vec::new();
+        response.write(&mut buffer).unwrap();
+        let s = String::from_utf8(buffer).unwrap();
+        assert_eq!(
+            s,
+            "HTTP/1.1 200\r\ncontent-type: text/plain\r\ncontent-length: 9\r\n\r\nit works!"
+        );
     }
 }

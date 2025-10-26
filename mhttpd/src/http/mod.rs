@@ -9,7 +9,7 @@ mod status;
 pub mod v1;
 pub mod v2;
 pub use header::Header;
-pub use message::{Request, RequestBuilder, Response, SerDe};
+pub use message::{Request, RequestBuilder, Response, ResponseBuilder, SerDe};
 pub use method::Method;
 pub use status::StatusCode;
 pub use version::Version;

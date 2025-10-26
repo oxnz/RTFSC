@@ -3,7 +3,7 @@ use std::{
     net::{SocketAddr, TcpListener, TcpStream},
 };
 
-use crate::http::{Header, Request, Response, SerDe};
+use crate::http::{Header, Request, Response, ResponseBuilder, SerDe};
 
 pub fn serve() -> std::io::Result<()> {
     let socket = TcpListener::bind("127.0.0.1:8000")?;
@@ -26,11 +26,10 @@ fn process(remote_addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
         let request = Request::read(&mut reader)?;
         tracing::debug!("request: {request:?} from addr: {remote_addr:?}");
         let body = br#"<html lang="en"><body><h1>it works!</h1></body></html>"#.to_vec();
-        let response = Response::new(
-            crate::http::Version::Http("1.1".to_string()),
-            crate::http::StatusCode::Ok,
-            None,
-            vec![
+        let response = ResponseBuilder::default()
+            .version(crate::http::Version::Http("1.1".to_string()))
+            .status(crate::http::StatusCode::Ok)
+            .headers(vec![
                 Header::Literal {
                     name: "content-type".to_string(),
                     value: "text/html".to_string(),
@@ -39,9 +38,9 @@ fn process(remote_addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
                     name: "content-length".to_string(),
                     value: body.len().to_string(),
                 },
-            ],
-            Some(body),
-        );
+            ])
+            .body(body)
+            .build()?;
         tracing::debug!("response: {response:?}");
         response.write(reader.get_mut())?;
     }

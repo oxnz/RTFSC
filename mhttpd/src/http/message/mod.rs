@@ -1,8 +1,7 @@
 mod request;
 mod response;
-pub use request::Request;
-pub use request::RequestBuilder;
-pub use response::Response;
+pub use request::{Request, RequestBuilder};
+pub use response::{Response, ResponseBuilder};
 
 use std::io::{BufRead, Write};
 
