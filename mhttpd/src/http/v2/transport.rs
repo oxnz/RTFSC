@@ -7,7 +7,7 @@ use tokio::{
 
 use crate::http::{
     codec::{Decode, Encode},
-    v2::{Frame, codec::FrameCodec, settings::Setting},
+    v2::{Frame, frame::FrameCodec, settings::Setting},
 };
 
 /**
