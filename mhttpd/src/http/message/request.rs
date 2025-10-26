@@ -1,6 +1,4 @@
-use std::io::{BufRead, Write};
-
-use crate::http::{Header, Method, Scheme, SerDe, Version};
+use crate::http::{Header, Method, Scheme, Version};
 
 #[derive(Debug, Default)]
 pub struct RequestBuilder {
@@ -65,13 +63,13 @@ impl RequestBuilder {
     }
 
     pub fn build(self) -> std::io::Result<Request> {
-        Ok(Request::new(
-            self.method.expect("no method"),
-            self.path.expect("no path"),
-            Version::Http("2.0".to_string()),
-            self.headers,
-            self.body,
-        ))
+        Ok(Request {
+            method: self.method.expect("no method"),
+            path: self.path.expect("no path"),
+            version: Version::Http("2.0".to_string()),
+            headers: self.headers,
+            body: self.body,
+        })
     }
 }
 
@@ -82,22 +80,4 @@ pub struct Request {
     pub(crate) version: Version,
     pub(crate) headers: Vec<Header>,
     pub(crate) body: Option<Vec<u8>>,
-}
-
-impl Request {
-    pub fn new(
-        method: Method,
-        path: String,
-        version: Version,
-        headers: Vec<Header>,
-        body: Option<Vec<u8>>,
-    ) -> Self {
-        Self {
-            method,
-            path,
-            version,
-            headers,
-            body,
-        }
-    }
 }
