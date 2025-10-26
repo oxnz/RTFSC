@@ -33,24 +33,25 @@ impl Connection {
             let frame = self.transport.read_frame().await?;
             tracing::info!("read frame: {frame:?}");
             match frame {
-                crate::http::v2::Frame::Data {
+                Frame::Data {
                     stream_id,
-                    flags,
+                    end_stream,
                     data,
+                    pad_len,
                 } => {
                     let stream = self
                         .streams
                         .entry(stream_id)
                         .or_insert(Stream::new(stream_id));
                     stream.request_builder.extend_body(&data);
-                    if 0 != flags & flags::END_STREAM {
+                    if end_stream {
                         stream.state = crate::http::v2::stream::State::Closed;
                         return std::mem::take(&mut stream.request_builder)
                             .build()
                             .map(|x| (stream_id, x));
                     }
                 }
-                crate::http::v2::Frame::Headers {
+                Frame::Headers {
                     stream_id,
                     flags,
                     items,
@@ -87,7 +88,7 @@ impl Connection {
                             .map(|x| (stream_id, x));
                     }
                 }
-                crate::http::v2::Frame::RstStream {
+                Frame::RstStream {
                     stream_id,
                     error_code,
                 } => {
@@ -99,7 +100,7 @@ impl Connection {
                         "stream reset",
                     ));
                 }
-                crate::http::v2::Frame::Settings { ack: flags, items } => {
+                Frame::Settings { ack: flags, items } => {
                     if 0 != flags & flags::ACK {
                         tracing::info!("settings acked");
                     } else {
@@ -111,11 +112,14 @@ impl Connection {
                             .await?;
                     }
                 }
-                crate::http::v2::Frame::WindowUpdate {
+                Frame::WindowUpdate {
                     stream_id,
                     increment,
                 } => {
                     tracing::error!("todo, ignore windowUpdate for now");
+                }
+                _ => {
+                    tracing::warn!("ignore frame: {frame:?}");
                 }
             }
         }
@@ -140,8 +144,9 @@ impl Connection {
         self.transport.send_frame(header_frame).await?;
         let data_frame: Frame = Frame::Data {
             stream_id,
-            flags: flags::END_STREAM,
+            end_stream: true,
             data: response.body.unwrap_or_default(),
+            pad_len: None,
         };
         self.transport.send_frame(data_frame).await?;
         Ok(())

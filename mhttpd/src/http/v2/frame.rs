@@ -1,9 +1,9 @@
 use crate::http::{
     Header, SerDe,
     codec::{Codec, Decode, Encode},
-    v2::{ErrorCode, settings::Setting},
+    v2::{ErrorCode, flags, settings::Setting},
 };
-use std::io::Write;
+use std::{io::Write, num::NonZero};
 
 pub(crate) struct RawFrame {
     r#type: Type,
@@ -169,13 +169,20 @@ impl From<Type> for u8 {
 pub enum Frame {
     Data {
         stream_id: u32,
-        flags: u8,
+        end_stream: bool,
+        pad_len: Option<u8>,
         data: Vec<u8>,
     },
     Headers {
         stream_id: u32,
         flags: u8,
         items: Vec<Header>,
+    },
+    Priority {
+        stream_id: u32,
+        exclusive: bool,
+        stream_dependency: u32,
+        weight: u8,
     },
     RstStream {
         stream_id: u32,
@@ -185,9 +192,30 @@ pub enum Frame {
         ack: u8,
         items: Vec<Setting>,
     },
+    PushPromise {
+        stream_id: u32,
+        end_headers: bool,
+        headers: Vec<Header>,
+        pad_len: Option<u8>,
+        promised_stream_id: u32,
+    },
+    Ping {
+        ack: bool,
+        opaque_data: u64,
+    },
+    GoAway {
+        last_stream_id: u32,
+        error_code: ErrorCode,
+        debug_data: Option<Vec<u8>>,
+    },
     WindowUpdate {
         stream_id: u32,
-        increment: u32,
+        increment: u32, // non-zero
+    },
+    Continuation {
+        end_headers: bool,
+        stream_id: u32,
+        headers: Vec<Header>,
     },
 }
 
@@ -221,15 +249,19 @@ impl Decode<Frame> for FrameCodec {
         stream.read_exact(&mut payload)?;
         match frame_type {
             Type::Data => {
-                let data = if 0 == flags & super::flags::PADDED {
-                    payload.to_vec()
+                let end_stream = 0 != flags & flags::END_STREAM;
+                let pad_len = if 0 == flags & flags::PADDED {
+                    None
                 } else {
-                    let pad_length = payload[0] as usize;
-                    payload[1..len - pad_length].to_vec()
+                    Some(payload[0])
                 };
+                let data = pad_len
+                    .map(|n| payload[1..len - n as usize].to_vec())
+                    .unwrap_or(payload);
                 Ok(Frame::Data {
                     stream_id,
-                    flags,
+                    end_stream,
+                    pad_len,
                     data,
                 })
             }
@@ -300,27 +332,31 @@ impl Decode<Frame> for FrameCodec {
 impl Encode<Frame> for FrameCodec {
     fn encode<W: std::io::Write>(&mut self, item: Frame, stream: &mut W) -> std::io::Result<()> {
         match item {
-            Frame::Settings { ack: flags, items } => {
-                let len: u32 = items.len() as u32 * 6;
-                stream.write_all(&len.to_be_bytes()[1..])?;
-                stream.write_all(&[0x04])?; // type
-                stream.write_all(&[flags])?; // flags
-                stream.write_all(&0u32.to_be_bytes())?; // stream_id
-                for item in items {
-                    stream.write_all(&item.identifier().to_be_bytes())?;
-                    stream.write_all(&item.value().to_be_bytes())?;
-                }
-            }
-            Frame::WindowUpdate {
+            Frame::Data {
                 stream_id,
-                increment,
+                end_stream,
+                pad_len,
+                data,
             } => {
-                let len: u32 = 4;
+                let len: u32 = data.len() as u32 + pad_len.unwrap_or_default() as u32;
+                let mut flags = 0;
+                if end_stream {
+                    flags |= flags::END_STREAM;
+                }
+                if pad_len.is_some() {
+                    flags |= flags::PADDED;
+                }
                 stream.write_all(&len.to_be_bytes()[1..])?;
-                stream.write_all(&[0x08])?; // type
-                stream.write_all(&[0])?; // flags
+                stream.write_all(&[0x00])?; // type
+                stream.write_all(&[flags])?; // flags
                 stream.write_all(&stream_id.to_be_bytes())?;
-                stream.write_all(&increment.to_be_bytes())?;
+                if let Some(n) = pad_len {
+                    stream.write_all(&[n])?;
+                }
+                stream.write_all(&data)?;
+                if let Some(n) = pad_len {
+                    stream.write_all(&vec![0u8; n as usize])?;
+                }
             }
             Frame::Headers {
                 stream_id,
@@ -339,17 +375,21 @@ impl Encode<Frame> for FrameCodec {
                 stream.write_all(&stream_id.to_be_bytes())?;
                 stream.write_all(&payload)?;
             }
-            Frame::Data {
+            Frame::Priority {
                 stream_id,
-                flags,
-                data,
+                exclusive,
+                mut stream_dependency,
+                weight,
             } => {
-                let len: u32 = data.len() as u32;
+                let len = 0x05_u32;
                 stream.write_all(&len.to_be_bytes()[1..])?;
-                stream.write_all(&[0x00])?; // type
-                stream.write_all(&[flags])?; // flags
+                stream.write_all(&[0x02, 0x00])?; // type & flags
                 stream.write_all(&stream_id.to_be_bytes())?;
-                stream.write_all(&data)?;
+                if exclusive {
+                    stream_dependency |= 0x8000_0000;
+                }
+                stream.write_all(&stream_dependency.to_be_bytes())?;
+                stream.write_all(&[weight])?;
             }
             Frame::RstStream {
                 stream_id,
@@ -362,6 +402,95 @@ impl Encode<Frame> for FrameCodec {
                 stream.write_all(&[0])?; // flags
                 stream.write_all(&stream_id.to_be_bytes())?;
                 stream.write_all(&data.to_be_bytes())?;
+            }
+            Frame::Settings { ack: flags, items } => {
+                let len: u32 = items.len() as u32 * 6;
+                stream.write_all(&len.to_be_bytes()[1..])?;
+                stream.write_all(&[0x04])?; // type
+                stream.write_all(&[flags])?; // flags
+                stream.write_all(&0u32.to_be_bytes())?; // stream_id
+                for item in items {
+                    stream.write_all(&item.identifier().to_be_bytes())?;
+                    stream.write_all(&item.value().to_be_bytes())?;
+                }
+            }
+            Frame::PushPromise {
+                stream_id,
+                end_headers,
+                headers,
+                pad_len,
+                promised_stream_id,
+            } => {
+                let payload = self.hpack_encoder.encode(
+                    headers
+                        .iter()
+                        .map(|item| (item.name().as_bytes(), item.value().as_bytes())),
+                );
+                let pad_len = pad_len.unwrap_or_default();
+                let len = 4 + payload.len() as u32 + pad_len as u32;
+                let flags = (if end_headers { flags::END_HEADERS } else { 0 })
+                    | if pad_len != 0 { flags::PADDED } else { 0 };
+                stream.write_all(&len.to_be_bytes()[1..])?;
+                stream.write_all(&[0x09, flags])?;
+                stream.write_all(&stream_id.to_be_bytes())?;
+                if 0 != pad_len {
+                    stream.write_all(&[pad_len])?;
+                }
+                stream.write_all(&promised_stream_id.to_be_bytes())?;
+                stream.write_all(&payload)?;
+                if 0 != pad_len {
+                    stream.write_all(&vec![0u8; pad_len as usize])?;
+                }
+            }
+            Frame::Ping { ack, opaque_data } => {
+                let len = 0x08_u32;
+                let flags = if ack { flags::ACK } else { 0x00 };
+                stream.write_all(&len.to_be_bytes()[1..])?;
+                stream.write_all(&[0x06, flags])?;
+                stream.write_all(&0u32.to_be_bytes())?;
+                stream.write_all(&opaque_data.to_be_bytes())?;
+            }
+            Frame::GoAway {
+                last_stream_id,
+                error_code,
+                debug_data,
+            } => {
+                let len = 8 + debug_data.as_ref().map(|x| x.len()).unwrap_or_default() as u32;
+                stream.write_all(&len.to_be_bytes()[1..])?;
+                stream.write_all(&[0x07, 0x00, 0x00, 0x00, 0x00, 0x00])?;
+                stream.write_all(&last_stream_id.to_be_bytes())?;
+                stream.write_all(&(error_code as u32).to_be_bytes())?;
+                if let Some(data) = debug_data {
+                    stream.write_all(&data)?;
+                }
+            }
+            Frame::WindowUpdate {
+                stream_id,
+                increment,
+            } => {
+                let len: u32 = 4;
+                stream.write_all(&len.to_be_bytes()[1..])?;
+                stream.write_all(&[0x08])?; // type
+                stream.write_all(&[0])?; // flags
+                stream.write_all(&stream_id.to_be_bytes())?;
+                stream.write_all(&increment.to_be_bytes())?;
+            }
+            Frame::Continuation {
+                end_headers,
+                stream_id,
+                headers,
+            } => {
+                let payload = self.hpack_encoder.encode(
+                    headers
+                        .iter()
+                        .map(|item| (item.name().as_bytes(), item.value().as_bytes())),
+                );
+                let len = payload.len() as u32;
+                let flags = if end_headers { flags::END_HEADERS } else { 0 };
+                stream.write_all(&len.to_be_bytes()[1..])?;
+                stream.write_all(&[0x09, flags])?;
+                stream.write_all(&stream_id.to_be_bytes())?;
+                stream.write_all(&payload)?;
             }
         }
         Ok(())
