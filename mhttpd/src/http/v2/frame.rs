@@ -1,9 +1,120 @@
 use std::io::Write;
 
+use bytes::BufMut;
+
 use crate::http::{
     Header, SerDe,
+    codec::{Decode, Encode},
     v2::{ErrorCode, settings::Setting},
 };
+
+pub(crate) struct RawFrame {
+    r#type: Type,
+    flags: u8,
+    stream_id: u32,
+    payload: Option<Vec<u8>>,
+}
+
+impl RawFrame {
+    pub fn reset_stream(stream_id: u32) -> Self {
+        Self {
+            r#type: Type::RstStream,
+            flags: 0,
+            stream_id,
+            payload: None,
+        }
+    }
+
+    pub fn ping(ack: bool, opaque_data: Vec<u8>) -> Self {
+        Self {
+            r#type: Type::Ping,
+            flags: if ack { 1 } else { 0 },
+            stream_id: 0,
+            payload: Some(opaque_data),
+        }
+    }
+
+    pub fn goaway(
+        last_stream_id: u32,
+        error_code: ErrorCode,
+        additional_debug_data: Option<&[u8]>,
+    ) -> Self {
+        let mut payload = Vec::with_capacity(
+            8 + additional_debug_data
+                .map(|data| data.len())
+                .unwrap_or_default(),
+        );
+        payload.put_u32(last_stream_id);
+        payload.put_u32(error_code as u32);
+        if let Some(data) = additional_debug_data {
+            payload.extend_from_slice(data);
+        }
+        Self {
+            r#type: Type::GoAway,
+            flags: 0,
+            stream_id: last_stream_id,
+            payload: Some(payload),
+        }
+    }
+
+    pub fn window_update(stream_id: u32, increment: u32) -> Self {
+        Self {
+            r#type: Type::WindowUpdate,
+            flags: 0,
+            stream_id,
+            payload: Some(increment.to_be_bytes().to_vec()),
+        }
+    }
+}
+
+impl SerDe for RawFrame {
+    fn read<R: std::io::BufRead>(stream: &mut R) -> std::io::Result<Self>
+    where
+        Self: Sized,
+    {
+        let mut header = [0u8; 9];
+        stream.read_exact(&mut header)?;
+        let len =
+            (((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32)) as usize;
+        let frame_type: Type = header[3].into();
+        let flags = header[4];
+        let stream_id = ((header[5] as u32 & 0x7F) << 24)
+            | ((header[6] as u32) << 16)
+            | ((header[7] as u32) << 8)
+            | (header[8] as u32);
+        Ok(if len > 0 {
+            let mut payload = vec![0u8; len];
+            stream.read_exact(&mut payload)?;
+            Self {
+                r#type: frame_type,
+                flags,
+                stream_id,
+                payload: Some(payload),
+            }
+        } else {
+            Self {
+                r#type: frame_type,
+                flags,
+                stream_id,
+                payload: None,
+            }
+        })
+    }
+
+    fn write<W: Write>(&self, stream: &mut W) -> std::io::Result<()> {
+        // let mut header = [0u8; 9];
+        //         stream.write_all(&len.to_be_bytes()[1..])?;
+        //         stream.write_all(&[Type::RstStream.into()])?; // type
+        //         stream.write_all(&[0])?; // flags
+        //         stream.write_all(&stream_id.to_be_bytes())?;
+        //         stream.write_all(&data.to_be_bytes())?;
+        // stream.write_all(self.header.as_slice())?;
+        // if let Some(payload) = &self.payload {
+        //     stream.write_all(&payload)?;
+        // }
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 pub enum Type {

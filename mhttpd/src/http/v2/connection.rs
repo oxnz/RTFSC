@@ -104,7 +104,7 @@ impl Connection {
                         tracing::info!("settings acked");
                     } else {
                         self.transport
-                            .send_frame(&Frame::Settings {
+                            .send_frame(Frame::Settings {
                                 ack: flags::ACK,
                                 items: vec![],
                             })
@@ -137,13 +137,13 @@ impl Connection {
             flags: flags::END_HEADERS,
             items: headers,
         };
-        self.transport.send_frame(&header_frame).await?;
+        self.transport.send_frame(header_frame).await?;
         let data_frame: Frame = Frame::Data {
             stream_id,
             flags: flags::END_STREAM,
             data: response.body.unwrap_or_default(),
         };
-        self.transport.send_frame(&data_frame).await?;
+        self.transport.send_frame(data_frame).await?;
         Ok(())
     }
 }

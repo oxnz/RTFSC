@@ -5,7 +5,10 @@ use tokio::{
     net::TcpStream,
 };
 
-use crate::http::v2::{Frame, settings::Setting};
+use crate::http::{
+    codec::{Decode, Encode},
+    v2::{Frame, codec::FrameCodec, settings::Setting},
+};
 
 /**
  * socket
@@ -13,8 +16,7 @@ use crate::http::v2::{Frame, settings::Setting};
  */
 pub struct Transport {
     stream: TcpStream,
-    hpack_encoder: hpack::Encoder<'static>,
-    hpack_decoder: hpack::Decoder<'static>,
+    frame_codec: FrameCodec,
 }
 
 impl std::fmt::Debug for Transport {
@@ -29,8 +31,7 @@ impl From<TcpStream> for Transport {
     fn from(value: TcpStream) -> Self {
         Self {
             stream: value,
-            hpack_encoder: hpack::Encoder::new(),
-            hpack_decoder: hpack::Decoder::new(),
+            frame_codec: Default::default(),
         }
     }
 }
@@ -51,7 +52,7 @@ impl Transport {
                 Setting::InitialWindowSize(10485760),
             ],
         };
-        self.send_frame(&server_settings).await?;
+        self.send_frame(server_settings).await?;
         tracing::debug!("preface exchanged");
         Ok(())
     }
@@ -59,16 +60,27 @@ impl Transport {
     pub async fn read_frame(&mut self) -> std::io::Result<Frame> {
         let mut header = [0u8; 9];
         self.stream.read_exact(&mut header).await?;
-        let len = ((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32);
-        let mut payload = vec![0u8; len as usize];
-        self.stream.read_exact(&mut payload).await?;
-        Frame::decode(&header, &payload, &mut self.hpack_decoder)
+        let payload_len =
+            (((header[0] as u32) << 16) | ((header[1] as u32) << 8) | (header[2] as u32)) as usize;
+        if payload_len > 0 {
+            let mut buffer = Vec::with_capacity(9 + payload_len);
+            buffer.extend_from_slice(&header);
+            unsafe {
+                buffer.set_len(9 + payload_len);
+            }
+            self.stream.read_exact(&mut buffer[header.len()..]).await?;
+            tracing::debug!("read raw frame: {buffer:?}");
+            self.frame_codec.decode(&mut std::io::Cursor::new(buffer))
+        } else {
+            tracing::debug!("read raw frame: {header:?}");
+            self.frame_codec.decode(&mut std::io::Cursor::new(&header))
+        }
     }
 
-    pub async fn send_frame(&mut self, frame: &Frame) -> std::io::Result<()> {
-        tracing::info!("send frame: {frame:?}");
+    pub async fn send_frame(&mut self, frame: Frame) -> std::io::Result<()> {
         let mut buffer = Vec::with_capacity(9);
-        frame.encode(&mut buffer, &mut self.hpack_encoder)?;
+        self.frame_codec.encode(frame, &mut buffer)?;
+        tracing::debug!("send raw frame: {buffer:?}");
         self.stream.write_all(&buffer).await
     }
 }

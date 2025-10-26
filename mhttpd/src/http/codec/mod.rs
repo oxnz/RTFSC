@@ -1,11 +1,11 @@
-use bytes::BytesMut;
+use std::io::{BufRead, Write};
 
 pub trait Encode<Item> {
-    fn encode(&mut self, item: Item, stream: &mut BytesMut) -> std::io::Result<()>;
+    fn encode<W: Write>(&mut self, item: Item, stream: &mut W) -> std::io::Result<()>;
 }
 
 pub trait Decode<Item> {
-    fn decode(&mut self, stream: &mut BytesMut) -> std::io::Result<Option<Item>>;
+    fn decode<R: BufRead>(&mut self, stream: &mut R) -> std::io::Result<Item>;
 }
 
-pub trait Codec<T>: Encode<T> + Decode<T> {}
+pub trait Codec<Item>: Encode<Item> + Decode<Item> {}
