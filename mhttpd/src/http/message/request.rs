@@ -1,11 +1,21 @@
 use crate::http::{Header, Method, Scheme, Version};
 
+#[derive(Debug)]
+pub struct Request {
+    pub(crate) method: Method,
+    pub(crate) path: String,
+    pub(crate) version: Version,
+    pub(crate) headers: Vec<Header>,
+    pub(crate) body: Option<Vec<u8>>,
+}
+
 #[derive(Debug, Default)]
 pub struct RequestBuilder {
     method: Option<Method>,
     scheme: Option<Scheme>,
     authority: Option<String>,
     path: Option<String>,
+    version: Option<Version>,
     headers: Vec<Header>,
     body: Option<Vec<u8>>,
 }
@@ -63,21 +73,23 @@ impl RequestBuilder {
     }
 
     pub fn build(self) -> std::io::Result<Request> {
+        let method = self.method.ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "missing method",
+        ))?;
+        let path = self.path.ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "missing path",
+        ))?;
+        let version = self.version.unwrap_or(Version::Http11);
+        // let headers = self.headers.ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, "missing headers"))?;
+        // let body = self.body.ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, "missing body"))?;
         Ok(Request {
-            method: self.method.expect("no method"),
-            path: self.path.expect("no path"),
-            version: Version::Http("2.0".to_string()),
+            method,
+            path,
+            version,
             headers: self.headers,
             body: self.body,
         })
     }
-}
-
-#[derive(Debug)]
-pub struct Request {
-    pub(crate) method: Method,
-    pub(crate) path: String,
-    pub(crate) version: Version,
-    pub(crate) headers: Vec<Header>,
-    pub(crate) body: Option<Vec<u8>>,
 }

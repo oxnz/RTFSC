@@ -142,7 +142,7 @@ mod tests {
     fn test_response_write() {
         let body = b"it works!".to_vec();
         let response = Response {
-            version: crate::http::Version::Http("1.1".to_string()),
+            version: crate::http::Version::Http11,
             status_code: crate::http::StatusCode::Ok,
             reason_phrase: None,
             headers: vec![

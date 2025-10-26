@@ -16,7 +16,7 @@ impl Router {
         let content = b"it works!".to_vec();
         tokio::time::sleep(Duration::from_secs(2)).await;
         ResponseBuilder::default()
-            .version(crate::http::Version::Http("2.0".to_string()))
+            .version(crate::http::Version::Http2)
             .status(crate::http::StatusCode::Ok)
             .headers(vec![Header::new(
                 "content-length",
