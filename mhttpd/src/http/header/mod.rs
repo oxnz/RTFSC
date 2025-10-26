@@ -22,15 +22,13 @@ impl Header {
 
     pub fn name(&self) -> &str {
         match self {
-            Header::Pseudo { name, value } => &name,
-            Header::Literal { name, value } => &name,
+            Header::Pseudo { name, value: _ } | Header::Literal { name, value: _ } => &name,
         }
     }
 
     pub fn value(&self) -> &str {
         match self {
-            Header::Pseudo { name, value } => &value,
-            Header::Literal { name, value } => &value,
+            Header::Pseudo { name: _, value } | Header::Literal { name: _, value } => &value,
         }
     }
 }
@@ -56,10 +54,14 @@ mod tests {
     #[test]
     fn test_parse() {
         let header = Header::from_str("Content-Type: text/html").unwrap();
-        assert!(matches!(header, Header::Literal {name, value} if name == "content-type"));
+        assert!(
+            matches!(header, Header::Literal {name, value} if name == "content-type" && value == "text/html")
+        );
 
         let header = Header::from_str("Content-Length: 123").unwrap();
-        assert!(matches!(header, Header::Literal {name, value} if name == "content-length"));
+        assert!(
+            matches!(header, Header::Literal {name, value} if name == "content-length" && value == "123")
+        );
 
         assert!(Header::from_str("Invalid").is_err());
     }
