@@ -1,22 +1,26 @@
 use std::{
-    io::BufReader,
+    io::{BufReader, Write},
     net::{SocketAddr, TcpListener, TcpStream},
 };
 
 use crate::http::{Header, Request, ResponseBuilder, SerDe};
 
 pub fn serve() -> std::io::Result<()> {
-    let socket = TcpListener::bind("127.0.0.1:8000")?;
-    loop {
-        match socket.accept() {
-            Ok((stream, remote_addr)) => {
-                if let Err(e) = process(remote_addr, stream) {
-                    tracing::error!("error: {e:?}");
+    let socket = TcpListener::bind("127.0.0.1:8080")?;
+    std::thread::scope(|s| {
+        loop {
+            match socket.accept() {
+                Ok((stream, remote_addr)) => {
+                    s.spawn(move || {
+                        if let Err(e) = process(remote_addr, stream) {
+                            tracing::error!("error: {e:?}");
+                        }
+                    });
                 }
+                Err(e) => tracing::error!("accept: {e:?}"),
             }
-            Err(e) => tracing::error!("accept: {e:?}"),
         }
-    }
+    });
     Ok(())
 }
 
@@ -43,6 +47,7 @@ fn process(remote_addr: SocketAddr, stream: TcpStream) -> std::io::Result<()> {
             .build()?;
         tracing::debug!("response: {response:?}");
         response.write(reader.get_mut())?;
+        reader.get_mut().flush()?;
     }
     Ok(())
 }

@@ -11,8 +11,8 @@ impl SerDe for Request {
         let n = r.read_until(b'\n', &mut line)?;
         if n == 0 {
             return Err(std::io::Error::new(
-                std::io::ErrorKind::WouldBlock,
-                "EAGAIN",
+                std::io::ErrorKind::UnexpectedEof,
+                "EOF",
             ));
         }
         let request_line = str::from_utf8(line.trim_ascii_end())
@@ -107,7 +107,7 @@ impl SerDe for Response {
 
         // headers
         for header in &self.headers {
-            write!(stream, "{:?}\r\n", header)?;
+            write!(stream, "{}: {}\r\n", header.name(), header.value())?;
         }
         stream.write(b"\r\n")?;
         if let Some(body) = self.body.as_ref() {
